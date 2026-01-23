@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wind Turbine Debug Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #000;
+            font-family: monospace;
+            color: #0f0;
+        }
+        .controls {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 20px;
+            border: 2px solid #0f0;
+            z-index: 9999;
+            max-width: 300px;
+        }
+        button {
+            margin: 5px 0;
+            padding: 10px;
+            width: 100%;
+            font-size: 14px;
+            cursor: pointer;
+            background: #000;
+            color: #0f0;
+            border: 1px solid #0f0;
+        }
+        button:hover {
+            background: #0f0;
+            color: #000;
+        }
+        .log {
+            margin-top: 10px;
+            padding: 10px;
+            background: rgba(0, 50, 0, 0.5);
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 11px;
+        }
+        iframe {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <h3>🔧 DEBUG CONTROLS</h3>
+        <button onclick="test1()">1. Show Main UI (Offline)</button>
+        <button onclick="test2()">2. Start Duty (Online)</button>
+        <button onclick="test3()">3. Update Work Time (2.5h)</button>
+        <button onclick="test4()">4. Update Systems (Low)</button>
+        <button onclick="test5()">5. Show Minigame</button>
+        <button onclick="test6()">6. Close UI</button>
+        <button onclick="clearLog()">Clear Log</button>
+        <div class="log" id="log"></div>
+    </div>
+    
+    <iframe id="gameFrame" src="http://localhost:5173"></iframe>
+    
+    <script>
+        const iframe = document.getElementById('gameFrame');
+        const logDiv = document.getElementById('log');
+        
+        function log(msg) {
+            const time = new Date().toLocaleTimeString();
+            logDiv.innerHTML = `[${time}] ${msg}<br>` + logDiv.innerHTML;
+        }
+        
+        function clearLog() {
+            logDiv.innerHTML = '';
+        }
+        
+        function sendMessage(action, data = {}) {
+            iframe.contentWindow.postMessage({
+                action: action,
+                ...data
+            }, '*');
+            log(`📤 Sent: ${action}`);
+        }
+        
+        // Listen for messages from iframe
+        window.addEventListener('message', (e) => {
+            if (e.data && e.data.action) {
+                log(`📥 Received: ${e.data.action}`);
+            }
+        });
+        
+        function test1() {
+            log('🎮 Test 1: Show Main UI (Offline)');
+            sendMessage('showMainUI', {
+                systems: {
+                    stability: 70,
+                    electric: 65,
+                    lubrication: 80,
+                    blades: 55,
+                    safety: 90
+                },
+                efficiency: 72,
+                earnings: 15000,
+                onDuty: false
+            });
+        }
+        
+        function test2() {
+            log('🎮 Test 2: Start Duty (Online)');
+            sendMessage('showMainUI', {
+                systems: {
+                    stability: 70,
+                    electric: 65,
+                    lubrication: 80,
+                    blades: 55,
+                    safety: 90
+                },
+                efficiency: 72,
+                earnings: 15000,
+                onDuty: true
+            });
+            
+            // Simulate server sending work time after 500ms
+            setTimeout(() => {
+                sendMessage('updateWorkTime', {
+                    workHours: 0,
+                    maxHours: 12
+                });
+            }, 500);
+        }
+        
+        function test3() {
+            log('🎮 Test 3: Update Work Time (2.5h)');
+            sendMessage('updateWorkTime', {
+                workHours: 2.5,
+                maxHours: 12
+            });
+        }
+        
+        function test4() {
+            log('🎮 Test 4: Update Systems (Low values)');
+            sendMessage('updateSystems', {
+                systems: {
+                    stability: 25,
+                    electric: 30,
+                    lubrication: 85,
+                    blades: 20,
+                    safety: 95
+                }
+            });
+            
+            sendMessage('updateEfficiency', {
+                efficiency: 51
+            });
+        }
+        
+        function test5() {
+            log('🎮 Test 5: Show Minigame (Lubrication)');
+            sendMessage('showMinigame', {
+                system: 'lubrication',
+                title: 'BƠM DẦU BÔI TRƠN',
+                speed: 1.1,
+                zoneSize: 0.25,
+                rounds: 1
+            });
+        }
+        
+        function test6() {
+            log('🎮 Test 6: Close UI');
+            sendMessage('hideUI');
+        }
+        
+        // Auto start test 1 after 1 second
+        setTimeout(() => {
+            test1();
+        }, 1000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wind Turbine Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #000;
+        }
+        button {
+            margin: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div style="margin-bottom: 20px;">
+        <button onclick="showMainUI()">Show Main UI</button>
+        <button onclick="startDuty()">Start Duty</button>
+        <button onclick="updateWorkTime()">Update Work Time</button>
+        <button onclick="updateSystems()">Update Systems</button>
+    </div>
+    
+    <iframe 
+        src="http://localhost:5173" 
+        style="width: 100%; height: 800px; border: 2px solid #00ffff;"
+    ></iframe>
+    
+    <script>
+        const iframe = document.querySelector('iframe');
+        
+        function sendMessage(action, data = {}) {
+            iframe.contentWindow.postMessage({
+                action: action,
+                ...data
+            }, '*');
+        }
+        
+        function showMainUI() {
+            sendMessage('showMainUI', {
+                systems: {
+                    stability: 70,
+                    electric: 65,
+                    lubrication: 80,
+                    blades: 55,
+                    safety: 90
+                },
+                efficiency: 72,
+                earnings: 15000,
+                onDuty: false
+            });
+        }
+        
+        function startDuty() {
+            sendMessage('showMainUI', {
+                systems: {
+                    stability: 70,
+                    electric: 65,
+                    lubrication: 80,
+                    blades: 55,
+                    safety: 90
+                },
+                efficiency: 72,
+                earnings: 15000,
+                onDuty: true
+            });
+        }
+        
+        function updateWorkTime() {
+            sendMessage('updateWorkTime', {
+                workHours: 2.5,
+                maxHours: 12
+            });
+        }
+        
+        function updateSystems() {
+            sendMessage('updateSystems', {
+                systems: {
+                    stability: 45,
+                    electric: 30,
+                    lubrication: 85,
+                    blades: 25,
+                    safety: 95
+                }
+            });
+            
+            sendMessage('updateEfficiency', {
+                efficiency: 56
+            });
+        }
+        
+        // Auto show UI after 1 second
+        setTimeout(() => {
+            showMainUI();
+        }, 1000);
+    </script>
+</body>
+</html>
