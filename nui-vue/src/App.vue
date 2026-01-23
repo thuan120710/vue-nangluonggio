@@ -143,8 +143,6 @@ export default {
     const handleMessage = (event) => {
       const data = event.data
       
-      console.log('🔔 Received message:', data.action, JSON.stringify(data))
-      
       switch (data.action) {
         case 'showMainUI':
           currentView.value = 'main'
@@ -152,13 +150,6 @@ export default {
           if (data.efficiency !== undefined) currentEfficiency.value = data.efficiency
           if (data.earnings !== undefined) currentEarnings.value = data.earnings
           if (data.onDuty !== undefined) isOnDuty.value = data.onDuty
-          
-          console.log('✅ Main UI shown:', JSON.stringify({
-            systems: currentSystems.value,
-            efficiency: currentEfficiency.value,
-            onDuty: isOnDuty.value,
-            workHours: workHours.value
-          }))
           break
           
         case 'hideUI':
@@ -207,15 +198,11 @@ export default {
           
         case 'updateActualEarningRate':
           // Update earning rate display
-          if (data.earningRate !== undefined) {
-            console.log('updateActualEarningRate:', data.earningRate)
-          }
           break
           
         case 'updateWorkTime':
           if (data.workHours !== undefined) workHours.value = data.workHours
           if (data.maxHours !== undefined) maxHours.value = data.maxHours
-          console.log('✅ Work time updated:', workHours.value, '/', maxHours.value)
           break
           
         case 'resetStatus':

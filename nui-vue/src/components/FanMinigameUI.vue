@@ -142,6 +142,16 @@ export default {
       boltsTightened.value++
       playSound('click')
       
+      // Thêm hiệu ứng xoay ốc
+      const boltElement = document.querySelector(`.bolt[data-bolt="${boltId}"]`)
+      if (boltElement) {
+        boltElement.style.transform = 'scale(1.2) rotate(360deg)'
+        boltElement.style.transition = 'all 0.3s ease-out'
+        setTimeout(() => {
+          boltElement.style.transform = ''
+        }, 300)
+      }
+      
       if (boltsTightened.value >= 3) {
         playSound('success')
         setTimeout(() => {

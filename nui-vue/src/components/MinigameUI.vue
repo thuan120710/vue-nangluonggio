@@ -78,8 +78,9 @@ export default {
     const animate = () => {
       if (!active.value) return
       
-      const speed = props.minigameData.speed || 1.0
-      indicatorPosition.value += indicatorDirection.value * speed * 0.01
+      // Tăng tốc độ gấp đôi (nhân 2)
+      const speed = (props.minigameData.speed || 1.0)
+      indicatorPosition.value += indicatorDirection.value * speed * 0.5
       
       if (indicatorPosition.value >= 100) {
         indicatorPosition.value = 100

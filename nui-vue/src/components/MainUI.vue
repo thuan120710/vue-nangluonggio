@@ -157,7 +157,7 @@
 </template>
 
 <script>
-import { computed, watch } from 'vue'
+import { computed } from 'vue'
 import SystemCard from './SystemCard.vue'
 import { playSound } from '../utils/sound'
 
@@ -198,13 +198,6 @@ export default {
   },
   emits: ['close', 'startDuty', 'stopDuty', 'repair', 'openEarnings'],
   setup(props, { emit }) {
-    console.log('🎨 MainUI mounted with props:', {
-      isOnDuty: props.isOnDuty,
-      efficiency: props.efficiency,
-      workHours: props.workHours,
-      systems: props.systems
-    })
-    
     // Đảm bảo systems luôn có đầy đủ 5 hệ thống
     const systemsList = computed(() => {
       const defaultSystems = {
@@ -253,15 +246,12 @@ export default {
       if (!props.isOnDuty) {
         return 'OFFLINE'
       }
-      if (props.workHours > 0) {
-        const hours = Math.floor(props.workHours * 10) / 10
-        return `ONLINE - ${hours}h/${props.maxHours}h`
-      }
-      return 'ONLINE'
+      // Hiển thị thời gian ngay khi online, mặc định 0h nếu chưa có data
+      const hours = props.workHours > 0 ? Math.floor(props.workHours * 10) / 10 : 0
+      return `ONLINE - ${hours}h/${props.maxHours}h`
     })
     
     const handleSystemClick = (system) => {
-      console.log('🖱️ System clicked:', system, 'isOnDuty:', props.isOnDuty)
       if (!props.isOnDuty) {
         playSound('fail')
         return
@@ -269,19 +259,6 @@ export default {
       playSound('click')
       emit('repair', system)
     }
-    
-    // Watch for prop changes
-    watch(() => props.isOnDuty, (newVal) => {
-      console.log('👁️ isOnDuty changed:', newVal)
-    })
-    
-    watch(() => props.efficiency, (newVal) => {
-      console.log('👁️ efficiency changed:', newVal)
-    })
-    
-    watch(() => props.workHours, (newVal) => {
-      console.log('👁️ workHours changed:', newVal)
-    })
     
     return {
       systemsList,
