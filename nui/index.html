@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wind Turbine Operator</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Main UI -->
+    <div id="mainUI" class="container hidden">
+        <!-- Animated Background -->
+        <div class="bg-grid"></div>
+        <div class="bg-particles">
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+        </div>
+        
+        <div class="header">
+            <div class="header-left">
+                <div class="logo-icon">⚡</div>
+                <div class="header-text">
+                    <h1>WIND TURBINE CONTROL</h1>
+                    <span class="subtitle">RENEWABLE ENERGY SYSTEM</span>
+                </div>
+            </div>
+            <button id="closeBtn" class="close-btn">
+                <span class="close-line"></span>
+                <span class="close-line"></span>
+            </button>
+        </div>
+        
+        <div class="content">
+            <!-- Turbine Center -->
+            <div class="turbine-section">
+                <div class="turbine-container" id="turbineContainer">
+                    <!-- Outer Rings -->
+                    <div class="outer-ring ring-1"></div>
+                    <div class="outer-ring ring-2"></div>
+                    <div class="outer-ring ring-3"></div>
+                    
+                    <!-- Progress Ring -->
+                    <svg class="progress-ring" width="280" height="280">
+                        <defs>
+                            <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#00ffff;stop-opacity:1" />
+                                <stop offset="100%" style="stop-color:#00ff88;stop-opacity:1" />
+                            </linearGradient>
+                            <filter id="glow">
+                                <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+                                <feMerge>
+                                    <feMergeNode in="coloredBlur"/>
+                                    <feMergeNode in="SourceGraphic"/>
+                                </feMerge>
+                            </filter>
+                        </defs>
+                        <circle class="progress-ring-bg" cx="140" cy="140" r="120" />
+                        <circle class="progress-ring-circle" cx="140" cy="140" r="120" />
+                    </svg>
+                    
+                    <!-- Turbine -->
+                    <div class="turbine-wrapper" id="turbine">
+                        <div class="turbine-center">
+                            <div class="center-core"></div>
+                            <div class="center-ring"></div>
+                        </div>
+                        <div class="blade-container stopped">
+                            <div class="blade">
+                                <div class="blade-inner"></div>
+                                <div class="blade-glow"></div>
+                            </div>
+                            <div class="blade">
+                                <div class="blade-inner"></div>
+                                <div class="blade-glow"></div>
+                            </div>
+                            <div class="blade">
+                                <div class="blade-inner"></div>
+                                <div class="blade-glow"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Info Display -->
+                    <div class="turbine-info">
+                        <div class="info-panel">
+                            <div class="info-label">EFFICIENCY</div>
+                            <div class="efficiency-display">
+                                <span id="efficiencyValue">0</span>
+                                <span class="unit">%</span>
+                            </div>
+                        </div>
+                        <div class="info-divider"></div>
+                        <div class="info-panel">
+                            <div class="info-label">EARNING RATE</div>
+                            <div class="earning-display">
+                                <span id="earningRate">0</span>
+                                <span class="unit"> IC/h</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Systems Grid -->
+            <div class="systems-section">
+                <div class="section-title">
+                    <span class="title-icon">⚙</span>
+                    SYSTEM STATUS
+                </div>
+                <div class="systems-grid">
+                    <div class="system-item disabled" data-system="stability">
+                        <div class="system-card">
+                            <div class="card-glow"></div>
+                            <div class="system-icon">⚖</div>
+                            <div class="system-circle">
+                                <svg class="circle-svg" width="120" height="120">
+                                    <defs>
+                                        <linearGradient id="grad-stability" x1="0%" y1="0%" x2="100%" y2="100%">
+                                            <stop offset="0%" style="stop-color:#00ffff;stop-opacity:1" />
+                                            <stop offset="100%" style="stop-color:#0088ff;stop-opacity:1" />
+                                        </linearGradient>
+                                    </defs>
+                                    <circle class="circle-bg" cx="60" cy="60" r="50"/>
+                                    <circle class="circle-progress" cx="60" cy="60" r="50" data-system="stability"/>
+                                    <circle class="circle-inner" cx="60" cy="60" r="42"/>
+                                </svg>
+                                <div class="system-value" data-system="stability">70<span class="percent">%</span></div>
+                            </div>
+                            <div class="system-label">STABILITY</div>
+                            <div class="system-status">OPERATIONAL</div>
+                        </div>
+                    </div>
+                    
+                    <div class="system-item disabled" data-system="electric">
+                        <div class="system-card">
+                            <div class="card-glow"></div>
+                            <div class="system-icon">⚡</div>
+                            <div class="system-circle">
+                                <svg class="circle-svg" width="120" height="120">
+                                    <defs>
+                                        <linearGradient id="grad-electric" x1="0%" y1="0%" x2="100%" y2="100%">
+                                            <stop offset="0%" style="stop-color:#ffff00;stop-opacity:1" />
+                                            <stop offset="100%" style="stop-color:#ffaa00;stop-opacity:1" />
+                                        </linearGradient>
+                                    </defs>
+                                    <circle class="circle-bg" cx="60" cy="60" r="50"/>
+                                    <circle class="circle-progress" cx="60" cy="60" r="50" data-system="electric"/>
+                                    <circle class="circle-inner" cx="60" cy="60" r="42"/>
+                                </svg>
+                                <div class="system-value" data-system="electric">70<span class="percent">%</span></div>
+                            </div>
+                            <div class="system-label">ELECTRICAL</div>
+                            <div class="system-status">OPERATIONAL</div>
+                        </div>
+                    </div>
+                    
+                    <div class="system-item disabled" data-system="lubrication">
+                        <div class="system-card">
+                            <div class="card-glow"></div>
+                            <div class="system-icon">💧</div>
+                            <div class="system-circle">
+                                <svg class="circle-svg" width="120" height="120">
+                                    <defs>
+                                        <linearGradient id="grad-lubrication" x1="0%" y1="0%" x2="100%" y2="100%">
+                                            <stop offset="0%" style="stop-color:#00ffff;stop-opacity:1" />
+                                            <stop offset="100%" style="stop-color:#00ff88;stop-opacity:1" />
+                                        </linearGradient>
+                                    </defs>
+                                    <circle class="circle-bg" cx="60" cy="60" r="50"/>
+                                    <circle class="circle-progress" cx="60" cy="60" r="50" data-system="lubrication"/>
+                                    <circle class="circle-inner" cx="60" cy="60" r="42"/>
+                                </svg>
+                                <div class="system-value" data-system="lubrication">70<span class="percent">%</span></div>
+                            </div>
+                            <div class="system-label">LUBRICATION</div>
+                            <div class="system-status">OPERATIONAL</div>
+                        </div>
+                    </div>
+                    
+                    <div class="system-item disabled" data-system="blades">
+                        <div class="system-card">
+                            <div class="card-glow"></div>
+                            <div class="system-icon">🔄</div>
+                            <div class="system-circle">
+                                <svg class="circle-svg" width="120" height="120">
+                                    <defs>
+                                        <linearGradient id="grad-blades" x1="0%" y1="0%" x2="100%" y2="100%">
+                                            <stop offset="0%" style="stop-color:#ff00ff;stop-opacity:1" />
+                                            <stop offset="100%" style="stop-color:#ff0088;stop-opacity:1" />
+                                        </linearGradient>
+                                    </defs>
+                                    <circle class="circle-bg" cx="60" cy="60" r="50"/>
+                                    <circle class="circle-progress" cx="60" cy="60" r="50" data-system="blades"/>
+                                    <circle class="circle-inner" cx="60" cy="60" r="42"/>
+                                </svg>
+                                <div class="system-value" data-system="blades">70<span class="percent">%</span></div>
+                            </div>
+                            <div class="system-label">BLADES</div>
+                            <div class="system-status">OPERATIONAL</div>
+                        </div>
+                    </div>
+                    
+                    <div class="system-item disabled" data-system="safety">
+                        <div class="system-card">
+                            <div class="card-glow"></div>
+                            <div class="system-icon">🛡</div>
+                            <div class="system-circle">
+                                <svg class="circle-svg" width="120" height="120">
+                                    <defs>
+                                        <linearGradient id="grad-safety" x1="0%" y1="0%" x2="100%" y2="100%">
+                                            <stop offset="0%" style="stop-color:#00ff88;stop-opacity:1" />
+                                            <stop offset="100%" style="stop-color:#00cc6a;stop-opacity:1" />
+                                        </linearGradient>
+                                    </defs>
+                                    <circle class="circle-bg" cx="60" cy="60" r="50"/>
+                                    <circle class="circle-progress" cx="60" cy="60" r="50" data-system="safety"/>
+                                    <circle class="circle-inner" cx="60" cy="60" r="42"/>
+                                </svg>
+                                <div class="system-value" data-system="safety">70<span class="percent">%</span></div>
+                            </div>
+                            <div class="system-label">SAFETY</div>
+                            <div class="system-status">OPERATIONAL</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <div class="footer-info">
+                <span class="status-dot"></span>
+                <span id="statusText">OFFLINE</span>
+            </div>
+            <div class="footer-actions">
+                <button id="startDutyBtn" class="btn btn-start">
+                    <span class="btn-icon">▶</span>
+                    START SHIFT
+                </button>
+                <button id="stopDutyBtn" class="btn btn-stop hidden">
+                    <span class="btn-icon">■</span>
+                    END SHIFT
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Minigame UI (Bar Type) -->
+    <div id="minigameUI" class="container hidden">
+        <div class="bg-grid"></div>
+        <div class="header">
+            <div class="header-left">
+                <div class="logo-icon">🔧</div>
+                <div class="header-text">
+                    <h1 id="minigameTitle">SYSTEM CALIBRATION</h1>
+                    <span class="subtitle">PRECISION REQUIRED</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="minigame-content">
+            <div class="minigame-wrapper">
+                <div class="minigame-bar">
+                    <div class="bar-glow"></div>
+                    <div class="minigame-zone" id="minigameZone"></div>
+                    <div class="minigame-indicator" id="minigameIndicator">
+                        <div class="indicator-glow"></div>
+                    </div>
+                </div>
+                <div class="minigame-instruction">
+                    <span class="key-hint">[SPACE]</span> or <span class="key-hint">[E]</span> when indicator is in green zone
+                </div>
+                <div class="minigame-round">
+                    Round: <span id="currentRound">1</span>/<span id="totalRounds">1</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Minigame UI (Fan Type - Stability) -->
+    <div id="fanMinigameUI" class="container hidden">
+        <div class="bg-grid"></div>
+        <div class="header">
+            <div class="header-left">
+                <div class="logo-icon">🔧</div>
+                <div class="header-text">
+                    <h1>SỬA CHỮA CÁNH QUẠT</h1>
+                    <span class="subtitle">TIGHTEN BOLTS & ROTATE FAN</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="fan-minigame-content">
+            <!-- Phase 1: Tighten Bolts -->
+            <div id="fanPhase1" class="fan-phase">
+                <div class="fan-instruction">
+                    <div class="instruction-icon">🔩</div>
+                    <div class="instruction-text">SIẾT ỐC CÁNH QUẠT</div>
+                    <div class="instruction-hint">Click vào ốc để siết (3 lần)</div>
+                </div>
+                
+                <div class="fan-container">
+                    <div class="fan-center">
+                        <div class="fan-core"></div>
+                    </div>
+                    <div class="fan-blades" id="fanBlades">
+                        <div class="fan-blade"></div>
+                        <div class="fan-blade"></div>
+                        <div class="fan-blade"></div>
+                    </div>
+                    <!-- Bolts -->
+                    <div class="bolt bolt-1" data-bolt="1">
+                        <div class="bolt-head"></div>
+                        <div class="bolt-glow"></div>
+                    </div>
+                    <div class="bolt bolt-2" data-bolt="2">
+                        <div class="bolt-head"></div>
+                        <div class="bolt-glow"></div>
+                    </div>
+                    <div class="bolt bolt-3" data-bolt="3">
+                        <div class="bolt-head"></div>
+                        <div class="bolt-glow"></div>
+                    </div>
+                </div>
+                
+                <div class="bolt-counter">
+                    Ốc đã siết: <span id="boltCount">0</span>/3
+                </div>
+            </div>
+            
+            <!-- Phase 2: Rotate Fan -->
+            <div id="fanPhase2" class="fan-phase hidden">
+                <div class="fan-instruction">
+                    <div class="instruction-icon">🔄</div>
+                    <div class="instruction-text">XOAY CÁNH QUẠT</div>
+                    <div class="instruction-hint">Xoay chuột theo chiều kim đồng hồ</div>
+                </div>
+                
+                <div class="fan-container">
+                    <div class="fan-center">
+                        <div class="fan-core"></div>
+                        <div class="rotation-arrow">↻</div>
+                    </div>
+                    <div class="fan-blades rotating" id="fanBladesRotate">
+                        <div class="fan-blade"></div>
+                        <div class="fan-blade"></div>
+                        <div class="fan-blade"></div>
+                    </div>
+                </div>
+                
+                <div class="rotation-progress">
+                    <div class="progress-label">Tiến độ xoay</div>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar" id="rotationProgress"></div>
+                    </div>
+                    <div class="progress-value"><span id="rotationValue">0</span>%</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Minigame UI (Circuit Breaker - Electrical) -->
+    <div id="circuitBreakerUI" class="container hidden">
+        <div class="bg-grid"></div>
+        <div class="header">
+            <div class="header-left">
+                <div class="logo-icon">⚡</div>
+                <div class="header-text">
+                    <h1>SỬA CHỮA HỆ THỐNG ĐIỆN</h1>
+                    <span class="subtitle">RESET CIRCUIT BREAKERS</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="circuit-breaker-content">
+            <div class="circuit-instruction">
+                <div class="instruction-icon">⚠️</div>
+                <div class="instruction-text">CHUYỂN TẤT CẢ CẦU DAO VỀ MÀU XANH</div>
+                <div class="instruction-hint">
+                    <span class="hint-item"><span class="color-dot green"></span> Xanh: Đã ổn</span>
+                    <span class="hint-item"><span class="color-dot yellow"></span> Vàng: Kéo lên 1 lần</span>
+                    <span class="hint-item"><span class="color-dot red"></span> Đỏ: Kéo lên 2 lần</span>
+                </div>
+                <div class="instruction-sub">Giữ chuột và kéo lên để gạt cầu dao</div>
+            </div>
+            
+            <div class="breakers-panel">
+                <div class="panel-frame">
+                    <div class="panel-header">
+                        <div class="panel-title">ELECTRICAL PANEL</div>
+                        <div class="panel-voltage">480V</div>
+                    </div>
+                    
+                    <div class="breakers-grid">
+                        <div class="breaker status-green" data-breaker="1">
+                            <div class="breaker-label">BREAKER 1</div>
+                            <div class="breaker-body">
+                                <div class="breaker-indicator"></div>
+                                <div class="breaker-switch">
+                                    <div class="switch-handle"></div>
+                                    <div class="drag-progress">
+                                        <div class="drag-progress-bar"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="breaker-rating">20A</div>
+                        </div>
+                        
+                        <div class="breaker status-red" data-breaker="2">
+                            <div class="breaker-label">BREAKER 2</div>
+                            <div class="breaker-body">
+                                <div class="breaker-indicator"></div>
+                                <div class="breaker-switch">
+                                    <div class="switch-handle"></div>
+                                    <div class="drag-progress">
+                                        <div class="drag-progress-bar"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="breaker-rating">30A</div>
+                        </div>
+                        
+                        <div class="breaker status-yellow" data-breaker="3">
+                            <div class="breaker-label">BREAKER 3</div>
+                            <div class="breaker-body">
+                                <div class="breaker-indicator"></div>
+                                <div class="breaker-switch">
+                                    <div class="switch-handle"></div>
+                                    <div class="drag-progress">
+                                        <div class="drag-progress-bar"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="breaker-rating">25A</div>
+                        </div>
+                        
+                        <div class="breaker status-red" data-breaker="4">
+                            <div class="breaker-label">BREAKER 4</div>
+                            <div class="breaker-body">
+                                <div class="breaker-indicator"></div>
+                                <div class="breaker-switch">
+                                    <div class="switch-handle"></div>
+                                    <div class="drag-progress">
+                                        <div class="drag-progress-bar"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="breaker-rating">40A</div>
+                        </div>
+                    </div>
+                    
+                    <div class="panel-footer">
+                        <div class="warning-strip">⚠ CAUTION: HIGH VOLTAGE ⚠</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="breaker-counter">
+                Cầu dao đã sửa: <span id="breakerCount">0</span>/4
+            </div>
+        </div>
+    </div>
+    
+    <!-- Minigame UI (Crack Repair - Blades) -->
+    <div id="crackRepairUI" class="container hidden">
+        <div class="bg-grid"></div>
+        <div class="header">
+            <div class="header-left">
+                <div class="logo-icon">🔨</div>
+                <div class="header-text">
+                    <h1>SỬA CHỮA THÂN THÁP</h1>
+                    <span class="subtitle">REPAIR TOWER CRACKS</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="crack-repair-content">
+            <div class="crack-instruction">
+                <div class="instruction-icon">⚠️</div>
+                <div class="instruction-text">SỬA CHỮA VẾT NỨT TRÊN THÂN THÁP</div>
+                <div class="instruction-hint">
+                    Click hoặc giữ chuột và di chuyển trên vết nứt để trét xi măng
+                </div>
+            </div>
+            
+            <div class="tower-structure" id="towerStructure">
+                <!-- Tower visual -->
+                <div class="tower-body">
+                    <div class="tower-segment"></div>
+                    <div class="tower-segment"></div>
+                    <div class="tower-segment"></div>
+                    <div class="tower-segment"></div>
+                    <div class="tower-segment"></div>
+                </div>
+                
+                <!-- Cracks will be dynamically added here -->
+                <div id="cracksContainer"></div>
+                
+                <!-- Tower details -->
+                <div class="tower-rivets">
+                    <div class="rivet"></div>
+                    <div class="rivet"></div>
+                    <div class="rivet"></div>
+                    <div class="rivet"></div>
+                    <div class="rivet"></div>
+                    <div class="rivet"></div>
+                    <div class="rivet"></div>
+                    <div class="rivet"></div>
+                </div>
+            </div>
+            
+            <div class="crack-counter">
+                Vết nứt đã sửa: <span id="crackCount">0</span>/<span id="totalCracks">3</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Earnings UI -->
+    <div id="earningsUI" class="container hidden">
+        <div class="bg-grid"></div>
+        <div class="bg-particles">
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+        </div>
+        
+        <div class="header">
+            <div class="header-left">
+                <div class="logo-icon">💰</div>
+                <div class="header-text">
+                    <h1>EARNINGS POOL</h1>
+                    <span class="subtitle">ACCUMULATED REVENUE</span>
+                </div>
+            </div>
+            <button id="closeEarningsBtn" class="close-btn">
+                <span class="close-line"></span>
+                <span class="close-line"></span>
+            </button>
+        </div>
+        
+        <div class="earnings-content">
+            <div class="earnings-display">
+                <div class="earnings-label">TOTAL BALANCE</div>
+                <div class="earnings-amount">
+                    <span id="totalEarnings">0</span>
+                    <span class="currency-symbol"> IC</span>
+                    <div class="amount-glow"></div>
+                </div>
+            </div>
+            
+            <div class="earnings-stats">
+                <div class="stat-card">
+                    <div class="stat-icon">📊</div>
+                    <div class="stat-info">
+                        <div class="stat-label">Current Efficiency</div>
+                        <div class="stat-value" id="currentEfficiency">0%</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">⚡</div>
+                    <div class="stat-info">
+                        <div class="stat-label">Earning Rate</div>
+                        <div class="stat-value"><span id="currentEarningRate">0</span> IC/h</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="earnings-actions">
+                <button id="withdrawBtn" class="btn btn-withdraw">
+                    <span class="btn-icon">💵</span>
+                    WITHDRAW FUNDS
+                </button>
+                <button id="backBtn" class="btn btn-back">
+                    <span class="btn-icon">←</span>
+                    BACK
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html>
