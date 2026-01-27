@@ -7,6 +7,11 @@ Config.TestMode = true -- Đổi thành false khi production
 
 -- ============================================
 
+-- ============================================
+-- HỆ THỐNG THUÊ TRẠM ĐIỆN GIÓ
+-- ============================================
+Config.RentalPrice = 0 -- MIỄN PHÍ để test
+Config.RentalDuration = 604800 -- 7 ngày (giây) - 604800 seconds = 7 days
 
 -- Vị trí trạm điện gió
 Config.TurbineLocation = vector4(2319.23, 1608.74, 57.94, 357.2)

@@ -1,5 +1,17 @@
 <template>
   <div>
+    <!-- Rental UI -->
+    <RentalUI
+      v-if="currentView === 'rental'"
+      :isRented="rentalData.isRented"
+      :isOwner="rentalData.isOwner"
+      :ownerName="rentalData.ownerName"
+      :expiryTime="rentalData.expiryTime"
+      :rentalPrice="rentalData.rentalPrice"
+      @rent="handleRentTurbine"
+      @close="handleClose"
+    />
+    
     <!-- Main UI -->
     <MainUI 
       v-if="currentView === 'main'"
@@ -61,6 +73,7 @@
 
 <script>
 import { ref, onMounted } from 'vue'
+import RentalUI from './components/RentalUI.vue'
 import MainUI from './components/MainUI.vue'
 import MinigameUI from './components/MinigameUI.vue'
 import FanMinigameUI from './components/FanMinigameUI.vue'
@@ -72,6 +85,7 @@ import { post } from './utils/api'
 export default {
   name: 'App',
   components: {
+    RentalUI,
     MainUI,
     MinigameUI,
     FanMinigameUI,
@@ -89,6 +103,14 @@ export default {
     const workHours = ref(0)
     const maxHours = ref(12)
     
+    const rentalData = ref({
+      isRented: false,
+      isOwner: false,
+      ownerName: null,
+      expiryTime: null,
+      rentalPrice: 50000
+    })
+    
     const minigameData = ref({})
     const currentRound = ref(0)
     const totalRounds = ref(1)
@@ -96,6 +118,10 @@ export default {
     // Handlers
     const handleClose = () => {
       post('close')
+    }
+    
+    const handleRentTurbine = () => {
+      post('rentTurbine')
     }
     
     const handleStartDuty = () => {
@@ -144,6 +170,17 @@ export default {
       const data = event.data
       
       switch (data.action) {
+        case 'showRentalUI':
+          currentView.value = 'rental'
+          rentalData.value = {
+            isRented: data.isRented || false,
+            isOwner: data.isOwner || false,
+            ownerName: data.ownerName || null,
+            expiryTime: data.expiryTime || null,
+            rentalPrice: data.rentalPrice || 50000
+          }
+          break
+          
         case 'showMainUI':
           currentView.value = 'main'
           if (data.systems) currentSystems.value = data.systems
@@ -236,10 +273,12 @@ export default {
       workLimitReached,
       workHours,
       maxHours,
+      rentalData,
       minigameData,
       currentRound,
       totalRounds,
       handleClose,
+      handleRentTurbine,
       handleStartDuty,
       handleStopDuty,
       handleRepair,

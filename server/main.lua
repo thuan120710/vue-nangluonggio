@@ -3,7 +3,8 @@ QBCore = exports['qb-core']:GetCoreObject()
 -- ============================================
 -- SERVER CHỈ XỬ LÝ:
 -- 1. Rút tiền (withdrawEarnings)
--- 2. Gửi phone notifications
+-- 2. Trừ tiền thuê trạm (rentTurbine)
+-- 3. Gửi phone notifications
 -- ============================================
 
 -- Event: Rút tiền
@@ -30,10 +31,81 @@ AddEventHandler('windturbine:withdrawEarnings', function(amount)
             local withdrawMsg = string.format("💰 Xác nhận rút tiền\n\nSố tiền: $%s IC\nThời gian: %s\n\nTiền đã được chuyển vào ví của bạn. Cảm ơn bạn đã làm việc chăm chỉ!", string.format("%d", amount), os.date("%H:%M:%S - %d/%m/%Y"))
             exports['lb-phone']:SendMessage('Trạm Điện Gió', tostring(phoneNumber), withdrawMsg, nil, nil, nil)
         end
-        
-        print(('[Wind Turbine] Player %s withdrew $%d'):format(playerId, amount))
     else
         TriggerClientEvent('QBCore:Notify', playerId, '❌ Lỗi hệ thống!', 'error')
+    end
+end)
+
+-- Event: Thuê trạm (chỉ trừ tiền)
+RegisterNetEvent('windturbine:rentTurbine')
+AddEventHandler('windturbine:rentTurbine', function(turbineId, rentalPrice)
+    local playerId = source
+    local Player = QBCore.Functions.GetPlayer(playerId)
+    
+    if not Player then
+        TriggerClientEvent('QBCore:Notify', playerId, '❌ Lỗi hệ thống!', 'error')
+        TriggerClientEvent('windturbine:rentFailed', playerId)
+        return
+    end
+    
+    -- Validate rentalPrice
+    if rentalPrice == nil or type(rentalPrice) ~= "number" or rentalPrice < 0 then
+        TriggerClientEvent('QBCore:Notify', playerId, '❌ Lỗi giá thuê!', 'error')
+        TriggerClientEvent('windturbine:rentFailed', playerId)
+        return
+    end
+    
+    -- Kiểm tra tiền (bỏ qua nếu giá = 0)
+    local playerMoney = Player.Functions.GetMoney('cash') or 0
+    
+    if rentalPrice > 0 and playerMoney < rentalPrice then
+        TriggerClientEvent('QBCore:Notify', playerId, 
+            string.format('❌ Không đủ tiền! Cần $%s IC (Bạn có: $%s IC)', 
+                string.format("%d", rentalPrice),
+                string.format("%d", playerMoney)), 
+            'error')
+        TriggerClientEvent('windturbine:rentFailed', playerId)
+        return
+    end
+    
+    -- Trừ tiền (chỉ khi giá > 0)
+    if rentalPrice > 0 then
+        Player.Functions.RemoveMoney('cash', rentalPrice)
+    end
+    
+    -- Lấy thông tin player
+    local citizenid = Player.PlayerData.citizenid
+    local ownerName = Player.PlayerData.charinfo.firstname .. ' ' .. Player.PlayerData.charinfo.lastname
+    
+    -- Thông báo thành công
+    if rentalPrice > 0 then
+        TriggerClientEvent('QBCore:Notify', playerId, 
+            string.format('✅ Đã thuê trạm điện gió! Giá: $%s IC | Thời hạn: 7 ngày', 
+                string.format("%d", rentalPrice)), 
+            'success', 5000)
+    else
+        TriggerClientEvent('QBCore:Notify', playerId, 
+            '✅ Đã thuê trạm điện gió MIỄN PHÍ! Thời hạn: 7 ngày', 
+            'success', 5000)
+    end
+    
+    -- Thông báo thành công cho client
+    TriggerClientEvent('windturbine:rentSuccess', playerId, {
+        citizenid = citizenid,
+        ownerName = ownerName
+    })
+    
+    -- Gửi tin nhắn xác nhận qua lb-phone
+    local phoneNumber = exports["lb-phone"]:GetEquippedPhoneNumber(playerId)
+    if phoneNumber then
+        local rentalMsg = ""
+        if rentalPrice > 0 then
+            rentalMsg = string.format("🌬️ Xác nhận thuê Trạm Điện Gió\n\n💰 Giá thuê: $%s IC\n⏰ Thời hạn: 7 ngày\n\n✅ Bạn có thể bắt đầu làm việc ngay bây giờ!\n\n⚠️ Lưu ý: Sau khi hết hạn, bạn cần thuê lại để tiếp tục sử dụng.", 
+                string.format("%d", rentalPrice))
+        else
+            rentalMsg = "🌬️ Xác nhận thuê Trạm Điện Gió\n\n💰 Giá thuê: MIỄN PHÍ\n⏰ Thời hạn: 7 ngày\n\n✅ Bạn có thể bắt đầu làm việc ngay bây giờ!\n\n⚠️ Lưu ý: Sau khi hết hạn, bạn cần thuê lại để tiếp tục sử dụng."
+        end
+        exports['lb-phone']:SendMessage('Trạm Điện Gió', tostring(phoneNumber), rentalMsg, nil, nil, nil)
     end
 end)
 

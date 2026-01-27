@@ -13,6 +13,57 @@ local currentEfficiency = 0
 local currentEarnings = 0
 local turbineSoundId = -1
 
+-- Dữ liệu thuê trạm (Chuyển sang client xử lý)
+local turbineId = "turbine_1"
+local turbineRentals = {} -- Lưu tất cả rental data ở client
+local rentalStatus = {
+    isRented = false,
+    isOwner = false,
+    ownerName = nil,
+    expiryTime = nil,
+    rentalPrice = 0
+}
+
+-- Helper: Kiểm tra hết hạn thuê
+local function CheckRentalExpiry(tId)
+    if not turbineRentals[tId] then return false end
+    
+    local currentTime = GetCloudTimeAsInt()
+    local rentalData = turbineRentals[tId]
+    
+    if currentTime >= rentalData.expiryTime then
+        turbineRentals[tId] = nil
+        return true -- Đã hết hạn
+    end
+    
+    return false -- Còn hạn
+end
+
+-- Helper: Lấy thông tin thuê
+local function GetRentalInfo(tId)
+    CheckRentalExpiry(tId) -- Kiểm tra hết hạn trước
+    return turbineRentals[tId]
+end
+
+-- Helper: Cập nhật rental status
+local function UpdateRentalStatus()
+    local rentalInfo = GetRentalInfo(turbineId)
+    
+    if rentalInfo then
+        rentalStatus.isRented = true
+        rentalStatus.isOwner = rentalInfo.isOwner
+        rentalStatus.ownerName = rentalInfo.ownerName
+        rentalStatus.expiryTime = rentalInfo.expiryTime
+    else
+        rentalStatus.isRented = false
+        rentalStatus.isOwner = false
+        rentalStatus.ownerName = nil
+        rentalStatus.expiryTime = nil
+    end
+    
+    rentalStatus.rentalPrice = Config.RentalPrice
+end
+
 -- Helper: Lấy timestamp hiện tại (milliseconds)
 local function GetCurrentTime()
     return GetGameTimer()
@@ -58,6 +109,17 @@ CreateThread(function()
     Wait(1000) -- Đợi game load xong
     playerData.lastDayReset = GetCurrentDay()
     playerData.lastWeekReset = GetCurrentWeek()
+    
+    -- Khởi tạo rental status
+    rentalStatus = {
+        isRented = false,
+        isOwner = false,
+        ownerName = nil,
+        expiryTime = nil,
+        rentalPrice = Config.RentalPrice
+    }
+    
+    UpdateRentalStatus()
 end)
 
 -- ============================================
@@ -139,7 +201,6 @@ local function ApplyPenalty()
     end
     
     if not penaltyRange or #penaltyRange.penalties == 0 then 
-        print(('[Wind Turbine] No penalty (%.1f hours worked)'):format(workHours))
         return 
     end
     
@@ -223,9 +284,6 @@ local function ApplyPenalty()
         action = 'updateActualEarningRate',
         earningRate = actualEarningRate
     })
-    
-    print(('[Wind Turbine] Penalty: %d systems -%d%% (%.1f hours worked)'):format(
-        numSystems, selectedPenalty.damage, workHours))
 end
 
 -- Kiểm tra và reset giới hạn thời gian
@@ -265,8 +323,35 @@ local function CheckTimeLimit()
     return true, "OK"
 end
 
+-- Mở UI thuê trạm (Định nghĩa TRƯỚC OpenMainUI)
+local function OpenRentalUI()
+    SetNuiFocus(true, true)
+    SendNUIMessage({
+        action = 'showRentalUI',
+        isRented = rentalStatus.isRented,
+        isOwner = rentalStatus.isOwner,
+        ownerName = rentalStatus.ownerName,
+        expiryTime = rentalStatus.expiryTime,
+        rentalPrice = rentalStatus.rentalPrice
+    })
+end
+
 -- Mở UI chính
 local function OpenMainUI()
+    -- Kiểm tra trạng thái thuê trước khi mở UI
+    if not rentalStatus.isRented then
+        -- Chưa thuê -> Hiển thị UI thuê trạm
+        OpenRentalUI()
+        return
+    end
+    
+    if not rentalStatus.isOwner then
+        -- Đã thuê nhưng không phải chủ
+        QBCore.Functions.Notify(string.format('❌ Trạm này đã được thuê bởi %s!', rentalStatus.ownerName), 'error', 5000)
+        return
+    end
+    
+    -- Là chủ -> Mở UI làm việc bình thường
     SetNuiFocus(true, true)
     SendNUIMessage({
         action = 'showMainUI',
@@ -318,6 +403,13 @@ RegisterNUICallback('close', function(data, cb)
 end)
 
 RegisterNUICallback('startDuty', function(data, cb)
+    -- Kiểm tra quyền sở hữu trạm
+    if not rentalStatus.isOwner then
+        QBCore.Functions.Notify('❌ Bạn không phải chủ trạm này!', 'error')
+        cb('ok')
+        return
+    end
+    
     -- Kiểm tra giới hạn thời gian
     local canWork, reason = CheckTimeLimit()
     if not canWork then
@@ -379,10 +471,6 @@ RegisterNUICallback('startDuty', function(data, cb)
         earningRate = actualEarningRate
     })
     
-    print(('[Wind Turbine] Started duty (Daily: %.1fh/%.0fh, Weekly: %.1fh/%.0fh)'):format(
-        playerData.dailyWorkHours, Config.MaxDailyHours,
-        playerData.weeklyWorkHours, Config.MaxWeeklyHours))
-    
     cb('ok')
 end)
 
@@ -395,9 +483,6 @@ RegisterNUICallback('stopDuty', function(data, cb)
         
         playerData.onDuty = false
         isOnDuty = false
-        
-        print(('[Wind Turbine] Stopped duty (Worked: %.1fh, Daily: %.1fh, Weekly: %.1fh)'):format(
-            workDuration, playerData.dailyWorkHours, playerData.weeklyWorkHours))
     end
     
     CloseUI()
@@ -490,8 +575,6 @@ RegisterNUICallback('minigameResult', function(data, cb)
         })
     end
     
-    print(('[Wind Turbine] Repaired %s: %s (+%d%%)'):format(system, result, reward))
-    
     -- Đợi 2.5 giây trước khi đóng và mở lại UI
     Wait(2500)
     CloseUI()
@@ -526,7 +609,53 @@ RegisterNUICallback('backToMain', function(data, cb)
     cb('ok')
 end)
 
+-- NUI Callback: Thuê trạm
+RegisterNUICallback('rentTurbine', function(data, cb)
+    if rentalStatus.isRented then
+        QBCore.Functions.Notify('❌ Trạm này đã được thuê!', 'error')
+        cb('ok')
+        return
+    end
+    
+    local rentalPrice = Config.RentalPrice or 0
+    
+    TriggerServerEvent('windturbine:rentTurbine', turbineId, rentalPrice)
+    cb('ok')
+end)
+
 -- Server Events
+RegisterNetEvent('windturbine:rentSuccess')
+AddEventHandler('windturbine:rentSuccess', function(data)
+    -- Lưu thông tin thuê ở client
+    local currentTime = GetCloudTimeAsInt()
+    turbineRentals[turbineId] = {
+        citizenid = data.citizenid,
+        ownerName = data.ownerName,
+        isOwner = true,
+        rentalTime = currentTime,
+        expiryTime = currentTime + Config.RentalDuration
+    }
+    
+    -- Cập nhật rental status
+    UpdateRentalStatus()
+    
+    -- Thông báo thành công
+    QBCore.Functions.Notify(
+        string.format('✅ Đã thuê trạm điện gió! Giá: $%s IC | Thời hạn: 7 ngày', 
+            string.format("%d", Config.RentalPrice)), 
+        'success', 5000)
+    
+    -- Đóng UI thuê và mở UI làm việc
+    CloseUI()
+    Wait(500)
+    OpenMainUI()
+end)
+
+RegisterNetEvent('windturbine:rentFailed')
+AddEventHandler('windturbine:rentFailed', function()
+    -- Refresh rental status
+    UpdateRentalStatus()
+end)
 RegisterNetEvent('windturbine:withdrawSuccess')
 AddEventHandler('windturbine:withdrawSuccess', function(amount)
     playerData.earningsPool = 0
@@ -580,9 +709,6 @@ CreateThread(function()
                 })
                 CloseUI()
                 
-                print(('[Wind Turbine] Auto-stopped: DAILY_LIMIT (Daily: %.1fh, Weekly: %.1fh)'):format(
-                    playerData.dailyWorkHours, playerData.weeklyWorkHours))
-                
                 goto continue
             end
             
@@ -609,9 +735,6 @@ CreateThread(function()
                     action = 'resetToInitialState'
                 })
                 CloseUI()
-                
-                print(('[Wind Turbine] Auto-stopped: WEEKLY_LIMIT (Daily: %.1fh, Weekly: %.1fh)'):format(
-                    playerData.dailyWorkHours, playerData.weeklyWorkHours))
                 
                 goto continue
             end
@@ -678,8 +801,6 @@ CreateThread(function()
                     maxHours = Config.MaxDailyHours
                 })
                 
-                print(('[Wind Turbine] Work time updated to %.1fh'):format(currentWorkHours))
-                
                 -- Sau đó mới check penalty
                 ApplyPenalty()
                 playerData.lastPenalty = currentTime
@@ -706,7 +827,13 @@ CreateThread(function()
             math.pow(playerCoords.z - turbineCoords.z, 2)
         )
         
+        local wasNear = isNearTurbine
         isNearTurbine = distance < 5.0
+        
+        -- Khi vào gần trạm, cập nhật rental status
+        if isNearTurbine and not wasNear then
+            UpdateRentalStatus()
+        end
         
         -- Cảnh báo khi rời xa trong khi đang làm việc (không tự động kết thúc ca)
         if isOnDuty and distance > 50.0 then
@@ -729,18 +856,26 @@ CreateThread(function()
             DrawMarker(1, Config.TurbineLocation.x, Config.TurbineLocation.y, Config.TurbineLocation.z - 1.0,
                 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 2.0, 2.0, 1.0, 0, 255, 0, 100, false, true, 2, false, nil, nil, false)
             
-            if not isOnDuty then
-                DrawText3D(Config.TurbineLocation.x, Config.TurbineLocation.y, Config.TurbineLocation.z,
-                    "[~g~E~w~] Bắt đầu ca làm việc")
-                
-                if IsControlJustReleased(0, 38) then -- E
-                    OpenMainUI()
+            local displayText = ""
+            
+            if not rentalStatus.isRented then
+                displayText = "[~g~E~w~] Thuê trạm điện gió"
+            elseif rentalStatus.isOwner then
+                if not isOnDuty then
+                    displayText = "[~g~E~w~] Bắt đầu ca làm việc"
+                else
+                    displayText = "[~g~E~w~] Mở bảng điều khiển"
                 end
             else
-                DrawText3D(Config.TurbineLocation.x, Config.TurbineLocation.y, Config.TurbineLocation.z,
-                    "[~g~E~w~] Mở bảng điều khiển")
-                
-                if IsControlJustReleased(0, 38) then -- E
+                displayText = string.format("~r~Đã thuê bởi: %s", rentalStatus.ownerName or "Unknown")
+            end
+            
+            DrawText3D(Config.TurbineLocation.x, Config.TurbineLocation.y, Config.TurbineLocation.z, displayText)
+            
+            if IsControlJustReleased(0, 38) then -- E
+                if rentalStatus.isRented and not rentalStatus.isOwner then
+                    QBCore.Functions.Notify(string.format('❌ Trạm này đã được thuê bởi %s!', rentalStatus.ownerName), 'error', 5000)
+                else
                     OpenMainUI()
                 end
             end

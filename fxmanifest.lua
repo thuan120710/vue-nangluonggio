@@ -10,17 +10,18 @@ version '1.0.0'
 dependency 'lb-phone'
 
 shared_scripts {
-    '@qb-core/shared/locale.lua',
     'config.lua'
 }
 
 client_scripts {
+    'config.lua',  -- Load lại config để đảm bảo
     'client/main.lua'
 }
 
 server_scripts {
+    'config.lua',  -- Load lại config để đảm bảo
     '@oxmysql/lib/MySQL.lua',
-    'server/main.lua',
+    'server/main.lua'
 }
 
 ui_page 'nui-dist/index.html'
