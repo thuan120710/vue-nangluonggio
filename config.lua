@@ -5,6 +5,9 @@ Config = {}
 -- ============================================
 Config.TestMode = true -- Đổi thành false khi production
 
+-- ============================================
+
+
 -- Vị trí trạm điện gió
 Config.TurbineLocation = vector4(2319.23, 1608.74, 57.94, 357.2)
 
