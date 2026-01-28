@@ -12,10 +12,10 @@ local currentSystems = {
 local currentEfficiency = 0
 local currentEarnings = 0
 local turbineSoundId = -1
+local lastNotifyTime = 0 -- Chống spam notify
 
--- Dữ liệu thuê trạm (Chuyển sang client xử lý)
+-- Dữ liệu thuê trạm (StateBag tự động đồng bộ - KHÔNG CẦN CHECK!)
 local turbineId = "turbine_1"
-local turbineRentals = {} -- Lưu tất cả rental data ở client
 local rentalStatus = {
     isRented = false,
     isOwner = false,
@@ -24,45 +24,7 @@ local rentalStatus = {
     rentalPrice = 0
 }
 
--- Helper: Kiểm tra hết hạn thuê
-local function CheckRentalExpiry(tId)
-    if not turbineRentals[tId] then return false end
-    
-    local currentTime = GetCloudTimeAsInt()
-    local rentalData = turbineRentals[tId]
-    
-    if currentTime >= rentalData.expiryTime then
-        turbineRentals[tId] = nil
-        return true -- Đã hết hạn
-    end
-    
-    return false -- Còn hạn
-end
 
--- Helper: Lấy thông tin thuê
-local function GetRentalInfo(tId)
-    CheckRentalExpiry(tId) -- Kiểm tra hết hạn trước
-    return turbineRentals[tId]
-end
-
--- Helper: Cập nhật rental status
-local function UpdateRentalStatus()
-    local rentalInfo = GetRentalInfo(turbineId)
-    
-    if rentalInfo then
-        rentalStatus.isRented = true
-        rentalStatus.isOwner = rentalInfo.isOwner
-        rentalStatus.ownerName = rentalInfo.ownerName
-        rentalStatus.expiryTime = rentalInfo.expiryTime
-    else
-        rentalStatus.isRented = false
-        rentalStatus.isOwner = false
-        rentalStatus.ownerName = nil
-        rentalStatus.expiryTime = nil
-    end
-    
-    rentalStatus.rentalPrice = Config.RentalPrice
-end
 
 -- Helper: Lấy timestamp hiện tại (milliseconds)
 local function GetCurrentTime()
@@ -106,11 +68,10 @@ local playerData = {
 
 -- Khởi tạo ngày/tuần khi script load
 CreateThread(function()
-    Wait(1000) -- Đợi game load xong
+    Wait(1000)
     playerData.lastDayReset = GetCurrentDay()
     playerData.lastWeekReset = GetCurrentWeek()
     
-    -- Khởi tạo rental status
     rentalStatus = {
         isRented = false,
         isOwner = false,
@@ -119,7 +80,42 @@ CreateThread(function()
         rentalPrice = Config.RentalPrice
     }
     
-    UpdateRentalStatus()
+    -- Lắng nghe StateBag - TỰ ĐỘNG CẬP NHẬT KHI CÓ THAY ĐỔI (KHÔNG CẦN CHECK!)
+    AddStateBagChangeHandler('turbine_' .. turbineId, 'global', function(bagName, key, value)
+        if value then
+            local Player = QBCore.Functions.GetPlayerData()
+            local isOwner = value.isRented and Player.citizenid == value.citizenid
+            
+            rentalStatus.isRented = value.isRented
+            rentalStatus.isOwner = isOwner
+            rentalStatus.ownerName = value.ownerName
+            rentalStatus.expiryTime = value.expiryTime
+        else
+            -- Server reset hoặc trạm hết hạn → Reset client
+            rentalStatus.isRented = false
+            rentalStatus.isOwner = false
+            rentalStatus.ownerName = nil
+            rentalStatus.expiryTime = nil
+        end
+    end)
+    
+    -- Load rental status ban đầu
+    local initialState = GlobalState['turbine_' .. turbineId]
+    if initialState and initialState.isRented then
+        local Player = QBCore.Functions.GetPlayerData()
+        local isOwner = initialState.isRented and Player.citizenid == initialState.citizenid
+        
+        rentalStatus.isRented = initialState.isRented
+        rentalStatus.isOwner = isOwner
+        rentalStatus.ownerName = initialState.ownerName
+        rentalStatus.expiryTime = initialState.expiryTime
+    else
+        -- Không có data từ server → Reset về trạng thái chưa thuê
+        rentalStatus.isRented = false
+        rentalStatus.isOwner = false
+        rentalStatus.ownerName = nil
+        rentalStatus.expiryTime = nil
+    end
 end)
 
 -- ============================================
@@ -347,7 +343,7 @@ local function OpenMainUI()
     
     if not rentalStatus.isOwner then
         -- Đã thuê nhưng không phải chủ
-        QBCore.Functions.Notify(string.format('❌ Trạm này đã được thuê bởi %s!', rentalStatus.ownerName), 'error', 5000)
+        QBCore.Functions.Notify('❌ Trạm này đã có người thuê!', 'error', 5000)
         return
     end
     
@@ -611,14 +607,16 @@ end)
 
 -- NUI Callback: Thuê trạm
 RegisterNUICallback('rentTurbine', function(data, cb)
-    if rentalStatus.isRented then
-        QBCore.Functions.Notify('❌ Trạm này đã được thuê!', 'error')
+    local rentalPrice = Config.RentalPrice or 0
+    
+    -- Kiểm tra trạng thái hiện tại (StateBag đã tự động cập nhật)
+    if rentalStatus.isRented and not rentalStatus.isOwner then
+        QBCore.Functions.Notify('❌ Trạm này đã có người thuê!', 'error', 5000)
         cb('ok')
         return
     end
     
-    local rentalPrice = Config.RentalPrice or 0
-    
+    -- Gửi request lên server để thuê (server sẽ kiểm tra lần nữa)
     TriggerServerEvent('windturbine:rentTurbine', turbineId, rentalPrice)
     cb('ok')
 end)
@@ -626,24 +624,17 @@ end)
 -- Server Events
 RegisterNetEvent('windturbine:rentSuccess')
 AddEventHandler('windturbine:rentSuccess', function(data)
-    -- Lưu thông tin thuê ở client
-    local currentTime = GetCloudTimeAsInt()
-    turbineRentals[turbineId] = {
-        citizenid = data.citizenid,
-        ownerName = data.ownerName,
-        isOwner = true,
-        rentalTime = currentTime,
-        expiryTime = currentTime + Config.RentalDuration
-    }
-    
-    -- Cập nhật rental status
-    UpdateRentalStatus()
+    -- StateBag sẽ tự động cập nhật rentalStatus, không cần làm gì thêm
     
     -- Thông báo thành công
-    QBCore.Functions.Notify(
-        string.format('✅ Đã thuê trạm điện gió! Giá: $%s IC | Thời hạn: 7 ngày', 
-            string.format("%d", Config.RentalPrice)), 
-        'success', 5000)
+    if Config.RentalPrice > 0 then
+        QBCore.Functions.Notify(
+            string.format('✅ Đã thuê trạm điện gió! Giá: $%s IC | Thời hạn: 7 ngày', 
+                string.format("%d", Config.RentalPrice)), 
+            'success', 5000)
+    else
+        QBCore.Functions.Notify('✅ Đã thuê trạm điện gió MIỄN PHÍ! Thời hạn: 7 ngày', 'success', 5000)
+    end
     
     -- Đóng UI thuê và mở UI làm việc
     CloseUI()
@@ -653,8 +644,8 @@ end)
 
 RegisterNetEvent('windturbine:rentFailed')
 AddEventHandler('windturbine:rentFailed', function()
-    -- Refresh rental status
-    UpdateRentalStatus()
+    -- StateBag đã tự động cập nhật, không cần làm gì
+    QBCore.Functions.Notify('❌ Không thể thuê trạm này!', 'error', 3000)
 end)
 RegisterNetEvent('windturbine:withdrawSuccess')
 AddEventHandler('windturbine:withdrawSuccess', function(amount)
@@ -811,7 +802,7 @@ CreateThread(function()
     end
 end)
 
--- Thread: Kiểm tra khoảng cách
+-- Thread: Kiểm tra khoảng cách (KHÔNG CẦN CHECK RENTAL NỮA - STATEBAG TỰ ĐỘNG!)
 CreateThread(function()
     local lastWarningTime = 0
     
@@ -827,18 +818,11 @@ CreateThread(function()
             math.pow(playerCoords.z - turbineCoords.z, 2)
         )
         
-        local wasNear = isNearTurbine
         isNearTurbine = distance < 5.0
         
-        -- Khi vào gần trạm, cập nhật rental status
-        if isNearTurbine and not wasNear then
-            UpdateRentalStatus()
-        end
-        
-        -- Cảnh báo khi rời xa trong khi đang làm việc (không tự động kết thúc ca)
+        -- Cảnh báo khi rời xa trong khi đang làm việc
         if isOnDuty and distance > 50.0 then
             local currentTime = GetGameTimer()
-            -- Chỉ thông báo mỗi 30 giây để tránh spam
             if currentTime - lastWarningTime > 30000 then
                 QBCore.Functions.Notify('⚠️ Bạn đang rời xa cối xay gió! Ca làm việc vẫn tiếp tục.', 'warning', 5000)
                 lastWarningTime = currentTime
@@ -867,14 +851,19 @@ CreateThread(function()
                     displayText = "[~g~E~w~] Mở bảng điều khiển"
                 end
             else
-                displayText = string.format("~r~Đã thuê bởi: %s", rentalStatus.ownerName or "Unknown")
+                displayText = "~r~Trạm đã có chủ sở hữu"
             end
             
             DrawText3D(Config.TurbineLocation.x, Config.TurbineLocation.y, Config.TurbineLocation.z, displayText)
             
             if IsControlJustReleased(0, 38) then -- E
                 if rentalStatus.isRented and not rentalStatus.isOwner then
-                    QBCore.Functions.Notify(string.format('❌ Trạm này đã được thuê bởi %s!', rentalStatus.ownerName), 'error', 5000)
+                    -- Chống spam notify: chỉ hiển thị 1 lần mỗi 3 giây
+                    local currentTime = GetGameTimer()
+                    if currentTime - lastNotifyTime > 5000 then
+                        QBCore.Functions.Notify('❌ Trạm này đã có người thuê!', 'error', 5000)
+                        lastNotifyTime = currentTime
+                    end
                 else
                     OpenMainUI()
                 end

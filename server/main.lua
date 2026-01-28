@@ -1,11 +1,69 @@
 QBCore = exports['qb-core']:GetCoreObject()
 
 -- ============================================
--- SERVER CHỈ XỬ LÝ:
+-- SERVER XỬ LÝ:
 -- 1. Rút tiền (withdrawEarnings)
 -- 2. Trừ tiền thuê trạm (rentTurbine)
 -- 3. Gửi phone notifications
+-- 4. Quản lý rental data (StateBag - broadcast tự động cho 500 người)
 -- ============================================
+
+-- Dữ liệu thuê trạm (lưu ở server)
+local TurbineRentals = {}
+
+-- Khởi tạo: Reset GlobalState khi script start
+CreateThread(function()
+    -- Reset tất cả trạm về trạng thái chưa thuê
+    GlobalState['turbine_turbine_1'] = {
+        isRented = false,
+        ownerName = nil,
+        citizenid = nil,
+        expiryTime = nil
+    }
+end)
+
+-- Helper: Broadcast rental status qua StateBag (tất cả client tự động nhận - KHÔNG CẦN CHECK LIÊN TỤC!)
+local function BroadcastRentalStatus(turbineId)
+    local rentalData = TurbineRentals[turbineId]
+    
+    if rentalData then
+        GlobalState['turbine_' .. turbineId] = {
+            isRented = true,
+            ownerName = rentalData.ownerName,
+            citizenid = rentalData.citizenid,
+            expiryTime = rentalData.expiryTime
+        }
+    else
+        GlobalState['turbine_' .. turbineId] = {
+            isRented = false,
+            ownerName = nil,
+            citizenid = nil,
+            expiryTime = nil
+        }
+    end
+end
+
+-- Helper: Kiểm tra hết hạn
+local function CheckRentalExpiry(turbineId)
+    if not TurbineRentals[turbineId] then return false end
+    
+    local currentTime = os.time()
+    local rentalData = TurbineRentals[turbineId]
+    
+    if currentTime >= rentalData.expiryTime then
+        TurbineRentals[turbineId] = nil
+        BroadcastRentalStatus(turbineId) -- Broadcast ngay khi hết hạn
+        return true
+    end
+    
+    return false
+end
+
+-- Helper: Lấy thông tin rental
+local function GetRentalInfo(turbineId)
+    CheckRentalExpiry(turbineId)
+    return TurbineRentals[turbineId]
+end
 
 -- Event: Rút tiền
 RegisterNetEvent('windturbine:withdrawEarnings')
@@ -17,15 +75,11 @@ AddEventHandler('windturbine:withdrawEarnings', function(amount)
         return
     end
     
-    -- QBCore: Thêm tiền vào ví
     local Player = QBCore.Functions.GetPlayer(playerId)
     if Player then
         Player.Functions.AddMoney('cash', amount)
-        
-        -- Thông báo cho client rút tiền thành công
         TriggerClientEvent('windturbine:withdrawSuccess', playerId, amount)
         
-        -- Gửi tin nhắn xác nhận qua lb-phone
         local phoneNumber = exports["lb-phone"]:GetEquippedPhoneNumber(playerId)
         if phoneNumber then
             local withdrawMsg = string.format("💰 Xác nhận rút tiền\n\nSố tiền: $%s IC\nThời gian: %s\n\nTiền đã được chuyển vào ví của bạn. Cảm ơn bạn đã làm việc chăm chỉ!", string.format("%d", amount), os.date("%H:%M:%S - %d/%m/%Y"))
@@ -48,6 +102,17 @@ AddEventHandler('windturbine:rentTurbine', function(turbineId, rentalPrice)
         return
     end
     
+    -- Kiểm tra trạm đã được thuê chưa
+    CheckRentalExpiry(turbineId)
+    if TurbineRentals[turbineId] then
+        local ownerName = TurbineRentals[turbineId].ownerName
+        TriggerClientEvent('QBCore:Notify', playerId, 
+            string.format('❌ Trạm này đã được thuê bởi %s!', ownerName), 
+            'error', 5000)
+        TriggerClientEvent('windturbine:rentFailed', playerId)
+        return
+    end
+    
     -- Validate rentalPrice
     if rentalPrice == nil or type(rentalPrice) ~= "number" or rentalPrice < 0 then
         TriggerClientEvent('QBCore:Notify', playerId, '❌ Lỗi giá thuê!', 'error')
@@ -55,7 +120,7 @@ AddEventHandler('windturbine:rentTurbine', function(turbineId, rentalPrice)
         return
     end
     
-    -- Kiểm tra tiền (bỏ qua nếu giá = 0)
+    -- Kiểm tra tiền
     local playerMoney = Player.Functions.GetMoney('cash') or 0
     
     if rentalPrice > 0 and playerMoney < rentalPrice then
@@ -68,7 +133,7 @@ AddEventHandler('windturbine:rentTurbine', function(turbineId, rentalPrice)
         return
     end
     
-    -- Trừ tiền (chỉ khi giá > 0)
+    -- Trừ tiền
     if rentalPrice > 0 then
         Player.Functions.RemoveMoney('cash', rentalPrice)
     end
@@ -76,6 +141,19 @@ AddEventHandler('windturbine:rentTurbine', function(turbineId, rentalPrice)
     -- Lấy thông tin player
     local citizenid = Player.PlayerData.citizenid
     local ownerName = Player.PlayerData.charinfo.firstname .. ' ' .. Player.PlayerData.charinfo.lastname
+    
+    -- Lưu rental data ở server
+    local currentTime = os.time()
+    TurbineRentals[turbineId] = {
+        citizenid = citizenid,
+        ownerName = ownerName,
+        playerId = playerId,
+        rentalTime = currentTime,
+        expiryTime = currentTime + (7 * 24 * 60 * 60)
+    }
+    
+    -- Broadcast qua StateBag - TẤT CẢ 500 CLIENT TỰ ĐỘNG NHẬN (KHÔNG CẦN CHECK!)
+    BroadcastRentalStatus(turbineId)
     
     -- Thông báo thành công
     if rentalPrice > 0 then
@@ -89,10 +167,10 @@ AddEventHandler('windturbine:rentTurbine', function(turbineId, rentalPrice)
             'success', 5000)
     end
     
-    -- Thông báo thành công cho client
     TriggerClientEvent('windturbine:rentSuccess', playerId, {
         citizenid = citizenid,
-        ownerName = ownerName
+        ownerName = ownerName,
+        expiryTime = TurbineRentals[turbineId].expiryTime
     })
     
     -- Gửi tin nhắn xác nhận qua lb-phone
@@ -126,7 +204,7 @@ AddEventHandler('windturbine:sendPhoneNotification', function(notifType, data)
     
     elseif notifType == 'penalty' then
         local systemDetails = table.concat(data.systemDetails, "\n")
-        message = string.format("⚠️ Cảnh báo hư hỏng!\n\nThời gian làm việc: %.1f giờ\nSố hệ thống bị ảnh hưởng: %d\nMức độ hư hỏng: -%d%%\n\nChi tiết:\n%s\n\n💡 Hãy sửa chữa để duy trì hiệu suất!", 
+        message = string.format("⚠️ Cảnh báo hư hỏng!\n\nThời gian làm việc: %.1f giờ\nSố hệ thống bị ảnh hưởng: %d\nMức độ hư hỏng: -%d%%\n\nChi tiết:\n%s\n\n� Hãy sửa chữa để duy trì hiệu suất!", 
             data.workHours, data.numSystems, data.damage, systemDetails)
     
     elseif notifType == 'repair' then
@@ -163,7 +241,7 @@ AddEventHandler('windturbine:sendPhoneNotification', function(notifType, data)
             data.totalDailyHours, math.floor(data.earningsPool), data.efficiency)
     
     elseif notifType == 'weeklyLimit' then
-        message = string.format("📊 Báo cáo tuần\n\n⏰ Tổng giờ làm: %.1f/%.0f giờ\n💰 Quỹ tiền lương: $%d IC\n📈 Hiệu suất: %.1f%%\n\n🎉 Bạn đã hoàn thành tuần làm việc!\nHãy nghỉ ngơi và quay lại vào tuần sau.", 
+        message = string.format("📊 Báo cáo tuần\n\n⏰ Tổng giờ làm: %.1f/%.0f giờ\n💰 Quỹ tiền lương: $%d IC\n� Hiệu suất: %.1f%%\n\n🎉 Bạn đã hoàn thành tuần làm việc!\nHãy nghỉ ngơi và quay lại vào tuần sau.", 
             data.totalWeeklyHours, data.maxWeeklyHours, math.floor(data.earningsPool), data.efficiency)
     end
     
