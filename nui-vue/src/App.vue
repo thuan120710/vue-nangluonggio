@@ -260,8 +260,34 @@ export default {
       }
     }
     
+    // Keyboard handler for testing (F2 to toggle MainUI)
+    const handleKeyPress = (event) => {
+      if (event.key === 'F2') {
+        if (currentView.value === 'main') {
+          currentView.value = 'hidden'
+        } else {
+          // Show MainUI with test data
+          currentView.value = 'main'
+          currentSystems.value = {
+            stability: 85,
+            electric: 70,
+            lubrication: 90,
+            blades: 65,
+            safety: 95
+          }
+          currentEfficiency.value = 81
+          currentEarnings.value = 15000
+          isOnDuty.value = true
+          workLimitReached.value = false
+          workHours.value = 3.5
+          maxHours.value = 12
+        }
+      }
+    }
+    
     onMounted(() => {
       window.addEventListener('message', handleMessage)
+      window.addEventListener('keydown', handleKeyPress)
     })
     
     return {

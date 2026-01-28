@@ -4,27 +4,21 @@
     :class="{ disabled }"
     :data-system="system"
   >
-    <div class="system-card">
+    <div class="system-card" :data-status="statusType">
       <div class="card-glow"></div>
       <div class="system-icon">{{ systemIcon }}</div>
       <div class="system-circle">
-        <svg class="circle-svg" width="120" height="120">
-          <defs>
-            <linearGradient :id="`grad-${system}`" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" :style="`stop-color:${gradientStart};stop-opacity:1`" />
-              <stop offset="100%" :style="`stop-color:${gradientEnd};stop-opacity:1`" />
-            </linearGradient>
-          </defs>
-          <circle class="circle-bg" cx="60" cy="60" r="50"/>
+        <svg class="circle-svg" width="90" height="90">
+          <circle class="circle-bg" cx="45" cy="45" r="38"/>
           <circle 
             class="circle-progress" 
-            cx="60" 
-            cy="60" 
-            r="50" 
+            cx="45" 
+            cy="45" 
+            r="38" 
             :data-system="system"
             :style="{ strokeDashoffset: circleOffset }"
           />
-          <circle class="circle-inner" cx="60" cy="60" r="42"/>
+          <circle class="circle-inner" cx="45" cy="45" r="32"/>
         </svg>
         <div class="system-value" :data-system="system">
           {{ Math.floor(value) }}<span class="percent">%</span>
@@ -33,7 +27,7 @@
       <div class="system-label">{{ systemLabel }}</div>
       <div 
         class="system-status"
-        :style="{ color: statusColor }"
+        :data-status="statusType"
       >
         {{ statusText }}
       </div>
@@ -63,34 +57,24 @@ export default {
   setup(props) {
     const systemConfig = {
       stability: {
-        icon: '⚖',
-        label: 'STABILITY',
-        gradientStart: '#00ffff',
-        gradientEnd: '#0088ff'
+        icon: '❄',
+        label: 'ỔN ĐỊNH'
       },
       electric: {
         icon: '⚡',
-        label: 'ELECTRICAL',
-        gradientStart: '#ffff00',
-        gradientEnd: '#ffaa00'
+        label: 'ĐIỆN ÁP'
       },
       lubrication: {
-        icon: '💧',
-        label: 'LUBRICATION',
-        gradientStart: '#00ffff',
-        gradientEnd: '#00ff88'
+        icon: '⚙',
+        label: 'KÉT CẦU'
       },
       blades: {
         icon: '🔄',
-        label: 'BLADES',
-        gradientStart: '#ff00ff',
-        gradientEnd: '#ff0088'
+        label: 'TRỤC XOAY'
       },
       safety: {
         icon: '🛡',
-        label: 'SAFETY',
-        gradientStart: '#00ff88',
-        gradientEnd: '#00cc6a'
+        label: 'AN TOÀN'
       }
     }
     
@@ -98,34 +82,30 @@ export default {
     
     const systemIcon = computed(() => config.value.icon || '⚙')
     const systemLabel = computed(() => config.value.label || props.system.toUpperCase())
-    const gradientStart = computed(() => config.value.gradientStart || '#00ffff')
-    const gradientEnd = computed(() => config.value.gradientEnd || '#00ff88')
     
     const circleOffset = computed(() => {
-      const circumference = 314
+      const circumference = 238
       return circumference - (props.value / 100) * circumference
     })
     
     const statusText = computed(() => {
-      if (props.value < 30) return 'CRITICAL'
-      if (props.value < 50) return 'WARNING'
-      return 'OPERATIONAL'
+      if (props.value < 30) return 'NGUY HIỂM'
+      if (props.value < 50) return 'CẢNH BÁO'
+      return 'TỐT'
     })
     
-    const statusColor = computed(() => {
-      if (props.value < 30) return '#ff4444'
-      if (props.value < 50) return '#ffaa00'
-      return 'rgba(0, 255, 136, 0.6)'
+    const statusType = computed(() => {
+      if (props.value < 30) return 'critical'
+      if (props.value < 50) return 'warning'
+      return 'good'
     })
     
     return {
       systemIcon,
       systemLabel,
-      gradientStart,
-      gradientEnd,
       circleOffset,
       statusText,
-      statusColor,
+      statusType,
       Math
     }
   }

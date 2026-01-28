@@ -11,20 +11,85 @@
     </div>
     
     <div class="header">
+      <div class="header-logo">
+        <img src="/img/f17.png" alt="F17 Logo" class="logo-image">
+      </div>
+      
       <div class="header-left">
-        <div class="logo-icon">⚡</div>
         <div class="header-text">
-          <h1>WIND TURBINE CONTROL</h1>
-          <span class="subtitle">RENEWABLE ENERGY SYSTEM</span>
+          <span class="subtitle">Người thuê: Kamelle</span>
         </div>
       </div>
+      
+      <div class="header-center">
+        <h1>TRẠM KHAI THÁC ĐIỆN GIÓ</h1>
+      </div>
+      
+      <div class="header-right">
+        <span class="time-label">Thời gian thuê còn lại:</span>
+        <span class="time-value">12h 38p</span>
+      </div>
+      
       <button class="close-btn" @click="$emit('close')">
-        <span class="close-line"></span>
-        <span class="close-line"></span>
+        ✕
       </button>
     </div>
     
     <div class="content">
+      <!-- Left Info Panel -->
+      <div class="left-panel">
+        <!-- Efficiency -->
+        <div class="stat-item">
+          <div class="stat-header">
+            <span class="stat-label">HIỆU SUẤT <span class="info-icon">ℹ</span></span>
+            <span class="stat-percent">{{ Math.floor(efficiency) }}%</span>
+          </div>
+          <div class="stat-bar">
+            <div class="stat-bar-fill green" :style="{ width: efficiency + '%' }"></div>
+          </div>
+        </div>
+
+        <!-- Fuel -->
+        <div class="stat-item">
+          <div class="stat-header">
+            <span class="stat-label">XĂNG <span class="info-icon">ℹ</span></span>
+            <span class="stat-percent red">30%</span>
+          </div>
+          <div class="stat-bar">
+            <div class="stat-bar-fill red" :style="{ width: '30%' }"></div>
+          </div>
+        </div>
+
+        <!-- System Status -->
+        <div class="stat-item status-section">
+          <div class="stat-label center">TRẠNG THÁI HỆ THỐNG</div>
+          <div class="status-display">
+            <span class="status-dot" :class="{ online: isOnDuty }"></span>
+            <span class="status-text">{{ isOnDuty ? 'ONLINE' : 'OFFLINE' }}</span>
+          </div>
+        </div>
+
+        <!-- Start/Stop Button -->
+        <button 
+          v-if="!isOnDuty"
+          class="btn btn-start"
+          :class="{ 'disabled-limit': workLimitReached }"
+          :disabled="workLimitReached"
+          @click="$emit('startDuty')"
+        >
+          <span class="btn-icon">▶</span>
+          {{ workLimitReached ? 'ĐÃ ĐẠT GIỚI HẠN' : 'KHỞI ĐỘNG' }}
+        </button>
+        <button 
+          v-else
+          class="btn btn-stop"
+          @click="$emit('stopDuty')"
+        >
+          <span class="btn-icon">■</span>
+          DỪNG CA
+        </button>
+      </div>
+      
       <!-- Turbine Center -->
       <div class="turbine-section">
         <div class="turbine-container" @click="$emit('openEarnings')">
@@ -83,74 +148,50 @@
               </div>
             </div>
           </div>
-          
-          <!-- Info Display -->
-          <div class="turbine-info">
-            <div class="info-panel">
-              <div class="info-label">EFFICIENCY</div>
-              <div class="efficiency-display">
-                <span>{{ Math.floor(efficiency) }}</span>
-                <span class="unit">%</span>
-              </div>
-            </div>
-            <div class="info-divider"></div>
-            <div class="info-panel">
-              <div class="info-label">EARNING RATE</div>
-              <div class="earning-display">
-                <span>{{ earningRateDisplay }}</span>
-                <span class="unit"> IC/h</span>
-              </div>
-            </div>
+        </div>
+      </div>
+
+      <!-- Right Info Panel -->
+      <div class="right-panel">
+        <!-- Income Rate -->
+        <div class="income-item">
+          <div class="income-label">THU NHẬP <span class="info-icon">ℹ</span></div>
+          <div class="income-value">{{ earningRateDisplay }} IC/GIỜ</div>
+        </div>
+
+        <!-- Total Income with glow -->
+        <div class="total-income-section">
+          <div class="total-glow"></div>
+          <div class="total-label">TỔNG THU NHẬP</div>
+          <div class="total-value-wrapper">
+            <div class="circle-ring"></div>
+            <div class="total-value">13,500 IC</div>
           </div>
         </div>
-      </div>
-      
-      <!-- Systems Grid -->
-      <div class="systems-section">
-        <div class="section-title">
-          <span class="title-icon">⚙</span>
-          SYSTEM STATUS
-        </div>
-        <div class="systems-grid">
-          <SystemCard
-            v-for="(value, system) in systemsList"
-            :key="system"
-            :system="system"
-            :value="value"
-            :disabled="!isOnDuty"
-            @click="handleSystemClick(system)"
-          />
-        </div>
+
+        <!-- Withdraw Button -->
+        <button 
+          v-if="isOnDuty"
+          class="btn btn-withdraw"
+          @click="$emit('openEarnings')"
+        >
+          <span class="btn-icon">💰</span>
+          RÚT TIỀN
+        </button>
       </div>
     </div>
-    
-    <div class="footer">
-      <div class="footer-info">
-        <span 
-          class="status-dot"
-          :class="{ online: isOnDuty && efficiency > 0 }"
-        ></span>
-        <span>{{ statusText }}</span>
-      </div>
-      <div class="footer-actions">
-        <button 
-          v-if="!isOnDuty"
-          class="btn btn-start"
-          :class="{ 'disabled-limit': workLimitReached }"
-          :disabled="workLimitReached"
-          @click="$emit('startDuty')"
-        >
-          <span class="btn-icon">▶</span>
-          {{ workLimitReached ? 'ĐÃ ĐẠT GIỚI HẠN' : 'START SHIFT' }}
-        </button>
-        <button 
-          v-else
-          class="btn btn-stop"
-          @click="$emit('stopDuty')"
-        >
-          <span class="btn-icon">■</span>
-          END SHIFT
-        </button>
+
+    <!-- Systems Grid at Bottom -->
+    <div class="systems-bottom">
+      <div class="systems-grid">
+        <SystemCard
+          v-for="(value, system) in systemsList"
+          :key="system"
+          :system="system"
+          :value="value"
+          :disabled="!isOnDuty"
+          @click="handleSystemClick(system)"
+        />
       </div>
     </div>
   </div>
