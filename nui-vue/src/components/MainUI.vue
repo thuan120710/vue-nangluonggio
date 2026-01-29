@@ -1,5 +1,7 @@
 <template>
-  <div class="container">
+  <div class="main-wrapper">
+    <div class="background-image"></div>
+    <div class="container">
     <!-- Animated Background -->
     <div class="bg-grid"></div>
     <div class="bg-particles">
@@ -194,6 +196,7 @@
         />
       </div>
     </div>
+  </div>
   </div>
 </template>
 

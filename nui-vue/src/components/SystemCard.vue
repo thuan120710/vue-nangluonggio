@@ -6,7 +6,9 @@
   >
     <div class="system-card" :data-status="statusType">
       <div class="card-glow"></div>
-      <div class="system-icon">{{ systemIcon }}</div>
+      <div class="system-icon">
+        <img :src="systemIcon" :alt="systemLabel" class="system-icon-img" />
+      </div>
       <div class="system-circle">
         <svg class="circle-svg" width="90" height="90">
           <circle class="circle-bg" cx="45" cy="45" r="38"/>
@@ -57,30 +59,30 @@ export default {
   setup(props) {
     const systemConfig = {
       stability: {
-        icon: '❄',
-        label: 'ỔN ĐỊNH'
+        icon: '/img/trucxoay.png',
+        label: 'TRỤC XOAY'
       },
       electric: {
-        icon: '⚡',
+        icon: '/img/dien.png',
         label: 'ĐIỆN ÁP'
       },
       lubrication: {
-        icon: '⚙',
-        label: 'KÉT CẦU'
+        icon: '/img/banhrang.png',
+        label: 'ỔN ĐỊNH'
       },
       blades: {
-        icon: '🔄',
-        label: 'TRỤC XOAY'
+        icon: '/img/khoang.png',
+        label: 'KẾT CẤU'
       },
       safety: {
-        icon: '🛡',
+        icon: '/img/chuachay.png',
         label: 'AN TOÀN'
       }
     }
     
     const config = computed(() => systemConfig[props.system] || {})
     
-    const systemIcon = computed(() => config.value.icon || '⚙')
+    const systemIcon = computed(() => config.value.icon || '/img/banhrang.png')
     const systemLabel = computed(() => config.value.label || props.system.toUpperCase())
     
     const circleOffset = computed(() => {
