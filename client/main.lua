@@ -354,7 +354,9 @@ local function OpenMainUI()
         systems = currentSystems,
         efficiency = currentEfficiency,
         earnings = currentEarnings,
-        onDuty = isOnDuty
+        onDuty = isOnDuty,
+        ownerName = rentalStatus.ownerName,
+        expiryTime = rentalStatus.expiryTime
     })
 end
 

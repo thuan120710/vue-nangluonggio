@@ -1,5 +1,7 @@
 <template>
-  <div class="container">
+  <div class="main-wrapper">
+    <div class="background-image"></div>
+    <div class="container">
     <div class="bg-grid"></div>
     <div class="header">
       <div class="header-left">
@@ -124,6 +126,7 @@
         Vết nứt đã sửa: <span>{{ repairedCount }}</span>/<span>{{ cracks.length }}</span>
       </div>
     </div>
+  </div>
   </div>
 </template>
 

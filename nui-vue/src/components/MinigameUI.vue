@@ -1,5 +1,7 @@
 <template>
-  <div class="container">
+  <div class="main-wrapper">
+    <div class="background-image"></div>
+    <div class="container">
     <div class="bg-grid"></div>
     <div class="header">
       <div class="header-left">
@@ -34,6 +36,7 @@
         </div>
       </div>
     </div>
+  </div>
   </div>
 </template>
 

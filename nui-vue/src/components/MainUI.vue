@@ -19,7 +19,7 @@
       
       <div class="header-left">
         <div class="header-text">
-          <span class="subtitle">Người thuê: Kamelle</span>
+          <span class="subtitle">Người thuê: <span class="subtitle-highlight">{{ ownerName }}</span></span>
         </div>
       </div>
       
@@ -29,7 +29,7 @@
       
       <div class="header-right">
         <span class="time-label">Thời gian thuê còn lại:</span>
-        <span class="time-value">12h 38p</span>
+        <span class="time-value">{{ remainingTime }}</span>
       </div>
       
       <button class="close-btn" @click="$emit('close')">
@@ -79,7 +79,7 @@
           :disabled="workLimitReached"
           @click="$emit('startDuty')"
         >
-          <span class="btn-icon">▶</span>
+          <span class="btn-icon">⏻</span>
           {{ workLimitReached ? 'ĐÃ ĐẠT GIỚI HẠN' : 'KHỞI ĐỘNG' }}
         </button>
         <button 
@@ -87,8 +87,8 @@
           class="btn btn-stop"
           @click="$emit('stopDuty')"
         >
-          <span class="btn-icon">■</span>
-          DỪNG CA
+          <span class="btn-icon">⏻</span>
+          TẠM DỪNG
         </button>
       </div>
       
@@ -167,7 +167,7 @@
           <div class="total-label">TỔNG THU NHẬP</div>
           <div class="total-value-wrapper">
             <div class="circle-ring"></div>
-            <div class="total-value">13,500 IC</div>
+            <div class="total-value">{{ Math.floor(earnings).toLocaleString() }} IC</div>
           </div>
         </div>
 
@@ -177,7 +177,7 @@
           class="btn btn-withdraw"
           @click="$emit('openEarnings')"
         >
-          <span class="btn-icon">💰</span>
+          <img src="/img/Primary.svg" alt="Money" class="btn-icon-img">
           RÚT TIỀN
         </button>
       </div>
@@ -223,6 +223,10 @@ export default {
       type: Number,
       default: 0
     },
+    earningRate: {
+      type: Number,
+      default: 0
+    },
     isOnDuty: {
       type: Boolean,
       default: false
@@ -238,6 +242,14 @@ export default {
     maxHours: {
       type: Number,
       default: 12
+    },
+    ownerName: {
+      type: String,
+      default: 'N/A'
+    },
+    expiryTime: {
+      type: Number,
+      default: null
     }
   },
   emits: ['close', 'startDuty', 'stopDuty', 'repair', 'openEarnings'],
@@ -278,9 +290,37 @@ export default {
     })
     
     const earningRateDisplay = computed(() => {
+      // Sử dụng earningRate từ server nếu có, nếu không thì tính toán
+      if (props.earningRate > 0) {
+        return Math.floor(props.earningRate).toLocaleString()
+      }
+      
+      // Fallback: tính toán dựa trên efficiency
       const basePerHour = 5000
       const rate = basePerHour * (props.efficiency / 100)
       return Math.floor(rate).toLocaleString()
+    })
+    
+    // Tính thời gian còn lại
+    const remainingTime = computed(() => {
+      if (!props.expiryTime) return 'N/A'
+      
+      const currentTime = Math.floor(Date.now() / 1000) // Current time in seconds
+      const remainingSeconds = props.expiryTime - currentTime
+      
+      if (remainingSeconds <= 0) return 'Hết hạn'
+      
+      const days = Math.floor(remainingSeconds / 86400)
+      const hours = Math.floor((remainingSeconds % 86400) / 3600)
+      const minutes = Math.floor((remainingSeconds % 3600) / 60)
+      
+      if (days > 0) {
+        return `${days}d ${hours}h ${minutes}p`
+      } else if (hours > 0) {
+        return `${hours}h ${minutes}p`
+      } else {
+        return `${minutes}p`
+      }
     })
     
     const statusText = computed(() => {
@@ -310,6 +350,7 @@ export default {
       shouldStopBlade,
       bladeStyle,
       earningRateDisplay,
+      remainingTime,
       statusText,
       handleSystemClick,
       Math

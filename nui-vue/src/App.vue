@@ -18,10 +18,13 @@
       :systems="currentSystems"
       :efficiency="currentEfficiency"
       :earnings="currentEarnings"
+      :earningRate="currentEarningRate"
       :isOnDuty="isOnDuty"
       :workLimitReached="workLimitReached"
       :workHours="workHours"
       :maxHours="maxHours"
+      :ownerName="ownerName"
+      :expiryTime="expiryTime"
       @close="handleClose"
       @startDuty="handleStartDuty"
       @stopDuty="handleStopDuty"
@@ -98,10 +101,13 @@ export default {
     const currentSystems = ref({})
     const currentEfficiency = ref(0)
     const currentEarnings = ref(0)
+    const currentEarningRate = ref(0)
     const isOnDuty = ref(false)
     const workLimitReached = ref(false)
     const workHours = ref(0)
     const maxHours = ref(12)
+    const ownerName = ref('N/A')
+    const expiryTime = ref(null)
     
     const rentalData = ref({
       isRented: false,
@@ -187,6 +193,8 @@ export default {
           if (data.efficiency !== undefined) currentEfficiency.value = data.efficiency
           if (data.earnings !== undefined) currentEarnings.value = data.earnings
           if (data.onDuty !== undefined) isOnDuty.value = data.onDuty
+          if (data.ownerName) ownerName.value = data.ownerName
+          if (data.expiryTime) expiryTime.value = data.expiryTime
           break
           
         case 'hideUI':
@@ -233,8 +241,12 @@ export default {
           currentEarnings.value = data.earnings
           break
           
+        case 'updateEarningsPool':
+          currentEarnings.value = data.earnings
+          break
+          
         case 'updateActualEarningRate':
-          // Update earning rate display
+          if (data.earningRate !== undefined) currentEarningRate.value = data.earningRate
           break
           
         case 'updateWorkTime':
@@ -277,10 +289,30 @@ export default {
           }
           currentEfficiency.value = 81
           currentEarnings.value = 15000
+          currentEarningRate.value = 4050
           isOnDuty.value = true
           workLimitReached.value = false
           workHours.value = 3.5
           maxHours.value = 12
+          ownerName.value = 'Test User'
+          expiryTime.value = Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60) // 7 days from now
+        }
+      }
+      
+      // F3 to toggle RentalUI
+      if (event.key === 'F3') {
+        if (currentView.value === 'rental') {
+          currentView.value = 'hidden'
+        } else {
+          // Show RentalUI with test data
+          currentView.value = 'rental'
+          rentalData.value = {
+            isRented: false,
+            isOwner: false,
+            ownerName: 'Test Owner',
+            expiryTime: Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60), // 7 days from now
+            rentalPrice: 550000
+          }
         }
       }
     }
@@ -295,10 +327,13 @@ export default {
       currentSystems,
       currentEfficiency,
       currentEarnings,
+      currentEarningRate,
       isOnDuty,
       workLimitReached,
       workHours,
       maxHours,
+      ownerName,
+      expiryTime,
       rentalData,
       minigameData,
       currentRound,

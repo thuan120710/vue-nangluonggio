@@ -1,99 +1,149 @@
 <template>
-  <div class="rental-overlay">
-    <div class="rental-container">
-      <!-- Close Button -->
-      <button class="close-btn" @click="handleClose">
-        <span>✕</span>
-      </button>
+  <div class="main-wrapper">
+    <div class="background-image"></div>
+    <div class="container">
+      <div class="bg-grid"></div>
       
       <!-- Header -->
-      <div class="rental-header">
-        <div class="header-icon">🌬️</div>
-        <h1>Trạm Điện Gió</h1>
-        <p class="subtitle">Hệ thống năng lượng tái tạo</p>
+      <div class="header">
+        <div class="header-logo">
+          <img src="/img/f17.png" alt="F17 Logo" class="logo-image">
+        </div>
+        
+        <div class="header-center">
+          <h1>TRẠM KHAI THÁC ĐIỆN GIÓ</h1>
+        </div>
+        
+        <button class="close-btn" @click="handleClose">
+          ✕
+        </button>
       </div>
 
       <!-- Content -->
-      <div class="rental-content">
-        <!-- Thông tin trạm -->
-        <div class="info-section">
-          <div class="info-card">
-            <div class="info-icon">💰</div>
-            <div class="info-details">
-              <span class="info-label">Giá thuê</span>
-              <span class="info-value">${{ formatMoney(rentalPrice) }} IC</span>
-            </div>
-          </div>
-
-          <div class="info-card">
-            <div class="info-icon">⏰</div>
-            <div class="info-details">
-              <span class="info-label">Thời hạn</span>
-              <span class="info-value">7 ngày</span>
-            </div>
-          </div>
-
-          <div class="info-card">
-            <div class="info-icon">💵</div>
-            <div class="info-details">
-              <span class="info-label">Thu nhập dự kiến</span>
-              <span class="info-value">~5,000 IC/giờ</span>
-            </div>
+      <div class="rental-content-wrapper">
+        <!-- Left: Hướng dẫn -->
+        <div class="rental-left-panel">
+          <div class="panel-title">HƯỚNG DẪN</div>
+          <div class="rental-info-box">
+            <ul class="feature-list">
+              <li>• Đây là hoạt động mang lại thu nhập thụ động cho cộng đồng.</li>
+              <li>• Trạm điện gió có thể hoạt động liên tục tối đa 12 giờ/ngày, sau đó cần bảo trì để tiếp tục vận hành.</li>
+              <li>• Thời gian kết thúc kỳ của toàn bộ các trạm điện gió là <span class="highlight">6 GIỜ SÁNG</span> mỗi ngày.</li>
+              <li>• Thu nhập sẽ dao động theo hiệu suất vận hành thực tế. <span class="highlight1">Công dân cần theo dõi sửa chữa chỉ số định kỳ để duy trì hiệu suất tối đa.</span></li>
+              <li>• Công dân có thể rút tiền bất kỳ lúc nào.</li>
+              <li>• <span class="highlight1">Sau 168h kể từ khi thuê, hệ thống sẽ tự động kết thúc hợp đồng thuê,<span class="highlight">công dân có thêm 4h để rút tiền</span> nếu vẫn còn số dư trong máy.</span></li>
+            </ul>
           </div>
         </div>
 
-        <!-- Mô tả -->
-        <div class="description-section">
-          <h3>📋 Thông tin chi tiết</h3>
-          <ul class="feature-list">
-            <li>✅ Làm việc tối đa 12 giờ/ngày, 84 giờ/tuần</li>
-            <li>✅ Thu nhập dựa trên hiệu suất hệ thống</li>
-            <li>✅ Cần bảo trì định kỳ để duy trì hiệu suất</li>
-            <li>✅ Tự động reset sau khi hết hạn thuê</li>
-            <li>⚠️ Sau 7 ngày cần thuê lại để tiếp tục</li>
-          </ul>
+        <!-- Center: Turbine -->
+        <div class="rental-center">
+          <div class="turbine-section-rental">
+            <div class="turbine-container-rental">
+              <!-- Outer Rings -->
+              <div class="outer-ring ring-1"></div>
+              <div class="outer-ring ring-2"></div>
+              <div class="outer-ring ring-3"></div>
+              
+              <!-- Progress Ring -->
+              <svg class="progress-ring" width="280" height="280">
+                <defs>
+                  <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#00ffff;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#00ff88;stop-opacity:1" />
+                  </linearGradient>
+                  <filter id="glow">
+                    <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+                    <feMerge>
+                      <feMergeNode in="coloredBlur"/>
+                      <feMergeNode in="SourceGraphic"/>
+                    </feMerge>
+                  </filter>
+                </defs>
+                <circle class="progress-ring-bg" cx="140" cy="140" r="120" />
+                <circle 
+                  class="progress-ring-circle" 
+                  cx="140" 
+                  cy="140" 
+                  r="120"
+                  style="stroke-dashoffset: 0"
+                />
+              </svg>
+              
+              <!-- Turbine -->
+              <div class="turbine-wrapper">
+                <div class="turbine-center">
+                  <div class="center-core"></div>
+                  <div class="center-ring"></div>
+                </div>
+                <div class="blade-container">
+                  <div class="blade">
+                    <div class="blade-inner"></div>
+                    <div class="blade-glow"></div>
+                  </div>
+                  <div class="blade">
+                    <div class="blade-inner"></div>
+                    <div class="blade-glow"></div>
+                  </div>
+                  <div class="blade">
+                    <div class="blade-inner"></div>
+                    <div class="blade-glow"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <button 
+            v-if="!isRented" 
+            class="btn btn-rent" 
+            @click="handleRent"
+          >
+            THUÊ TRẠM - ${{ formatMoney(rentalPrice) }} IC
+          </button>
+          
+          <div v-else class="rented-status">
+            <div class="status-icon">🔒</div>
+            <div class="status-text">ĐÃ ĐƯỢC THUÊ</div>
+          </div>
         </div>
 
-        <!-- Trạng thái -->
-        <div v-if="isRented" class="status-section rented">
-          <div class="status-icon">🔒</div>
-          <div class="status-text">
-            <h3>Trạm đã được thuê</h3>
-            <p>Chủ sở hữu: <strong>{{ ownerName }}</strong></p>
-            <p v-if="expiryTime" class="expiry-time">
+        <!-- Right: Thông tin -->
+        <div class="rental-right-panel">
+          <div class="panel-title">THÔNG TIN</div>
+          
+          <div class="info-card-rental">
+            <div class="info-icon-rental">
+              <img src="/img/tien.png" alt="Giá Thuê" class="info-icon-img">
+            </div>
+            <div class="info-label-rental">Giá Thuê</div>
+            <div class="info-value-rental">${{ formatMoney(rentalPrice) }} IC</div>
+          </div>
+
+          <div class="info-card-rental">
+            <div class="info-icon-rental">
+              <img src="/img/dongho.png" alt="Thời Hạn" class="info-icon-img">
+            </div>
+            <div class="info-label-rental">Thời Hạn</div>
+            <div class="info-value-rental">7 NGÀY</div>
+          </div>
+
+          <div class="info-card-rental">
+            <div class="info-icon-rental">
+              <img src="/img/thunhap.png" alt="Thu Nhập" class="info-icon-img">
+            </div>
+            <div class="info-label-rental">Thu Nhập</div>
+            <div class="info-value-rental">lên tới 5,000 IC / GIỜ</div>
+          </div>
+
+          <div v-if="isRented" class="owner-info">
+            <div class="owner-label">Chủ sở hữu:</div>
+            <div class="owner-name">{{ ownerName }}</div>
+            <div v-if="expiryTime" class="expiry-time">
               Hết hạn: {{ formatExpiryTime(expiryTime) }}
-            </p>
+            </div>
           </div>
         </div>
-
-        <div v-else class="status-section available">
-          <div class="status-icon">✅</div>
-          <div class="status-text">
-            <h3>Trạm có sẵn</h3>
-            <p>Bạn có thể thuê trạm này ngay bây giờ</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Actions -->
-      <div class="rental-actions">
-        <button 
-          v-if="!isRented" 
-          class="btn btn-rent" 
-          @click="handleRent"
-        >
-          <span class="btn-icon">💰</span>
-          <span>Thuê trạm - ${{ formatMoney(rentalPrice) }} IC</span>
-        </button>
-
-        <button 
-          v-else 
-          class="btn btn-close" 
-          @click="handleClose"
-        >
-          <span class="btn-icon">❌</span>
-          <span>Đóng</span>
-        </button>
       </div>
     </div>
   </div>
@@ -113,7 +163,7 @@ export default {
     },
     ownerName: {
       type: String,
-      default: null
+      default: 'N/A'
     },
     expiryTime: {
       type: Number,
@@ -124,6 +174,7 @@ export default {
       default: 50000
     }
   },
+  emits: ['rent', 'close'],
   methods: {
     handleRent() {
       this.$emit('rent')
@@ -148,267 +199,381 @@ export default {
 }
 </script>
 
+
 <style scoped>
-.rental-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: rgba(0, 0, 0, 0.85);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-  animation: fadeIn 0.3s ease;
+/* Rental UI Styles */
+.rental-content-wrapper {
+    padding: 7.125rem 3.75rem;
+    display: flex;
+    gap: 3.125rem;
+    align-items: flex-start;
+    justify-content: space-between;
+    height: calc(100% - 150px);
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+.rental-left-panel,
+.rental-right-panel {
+    flex: 0 0 22.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
 }
 
-.rental-container {
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-  border-radius: 20px;
-  padding: 30px;
-  max-width: 600px;
-  width: 90%;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-  animation: slideUp 0.4s ease;
-  position: relative;
+.panel-title {
+    font-size: 1.525rem;
+    font-weight: 700;
+    letter-spacing: 0.1875rem;
+    background: linear-gradient(180deg, #80F0FF 0%, #00C4DD 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 0.9375rem rgba(0, 255, 255, 0.8);
+    text-align: center;
+    margin-bottom: 0.625rem;
+    font-family: 'Baloo 2', cursive;
 }
 
-.close-btn {
-  position: absolute;
-  top: 15px;
-  right: 15px;
-  width: 40px;
-  height: 40px;
-  border: none;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 50%;
-  color: #fff;
-  font-size: 24px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.3s ease;
-  z-index: 10;
-}
+.rental-info-box {
+    background: rgba(0, 255, 255, 0.05);
+    border: 0.125rem solid rgba(0, 255, 255, 0.3);
+    border-radius: 0.9375rem;
+    padding: 1.589rem;
+    background: #5D5D5F4D;
 
-.close-btn:hover {
-  background: rgba(255, 68, 68, 0.8);
-  transform: rotate(90deg);
-}
-
-@keyframes slideUp {
-  from {
-    transform: translateY(50px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}
-
-.rental-header {
-  text-align: center;
-  margin-bottom: 30px;
-  padding-bottom: 20px;
-  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
-}
-
-.header-icon {
-  font-size: 60px;
-  margin-bottom: 10px;
-  animation: rotate 3s linear infinite;
-}
-
-@keyframes rotate {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.rental-header h1 {
-  font-size: 32px;
-  color: #00ff88;
-  margin: 10px 0;
-  text-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
-}
-
-.subtitle {
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 14px;
-}
-
-.rental-content {
-  margin-bottom: 25px;
-}
-
-.info-section {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 15px;
-  margin-bottom: 25px;
-}
-
-.info-card {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  padding: 15px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  transition: all 0.3s ease;
-}
-
-.info-card:hover {
-  background: rgba(255, 255, 255, 0.08);
-  transform: translateY(-2px);
-}
-
-.info-icon {
-  font-size: 28px;
-}
-
-.info-details {
-  display: flex;
-  flex-direction: column;
-}
-
-.info-label {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
-  margin-bottom: 4px;
-}
-
-.info-value {
-  font-size: 16px;
-  font-weight: bold;
-  color: #00ff88;
-}
-
-.description-section {
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 12px;
-  padding: 20px;
-  margin-bottom: 20px;
-}
-
-.description-section h3 {
-  color: #00ff88;
-  margin-bottom: 15px;
-  font-size: 18px;
 }
 
 .feature-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
+    list-style: none;
+    padding: 0;
+    margin: 0;
 }
 
 .feature-list li {
-  color: rgba(255, 255, 255, 0.8);
-  padding: 8px 0;
-  font-size: 14px;
-  line-height: 1.6;
+    color: rgba(255, 255, 255, 0.8);
+    padding: 0.5rem 0;
+    font-size: 0.9825rem;
+    line-height: 1.6;
+    letter-spacing: 0.03125rem;
+    font-family: 'Baloo 2', cursive;
 }
 
-.status-section {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
-  padding: 20px;
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  border: 2px solid;
+.feature-list .highlight {
+    color: #ffaa00;
+    font-weight: 700;
+}
+.feature-list .highlight1 {
+    color: #ffffff;
+    font-weight: 700;
 }
 
-.status-section.available {
-  border-color: #00ff88;
-  background: rgba(0, 255, 136, 0.1);
+.rental-center {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8.5rem;
+    margin-top: 4.125rem;
 }
 
-.status-section.rented {
-  border-color: #ff4444;
-  background: rgba(255, 68, 68, 0.1);
+.turbine-section-rental {
+    flex: 0 0 21.875rem;
 }
 
-.status-icon {
-  font-size: 40px;
+.turbine-container-rental {
+    position: relative;
+    width: 21.875rem;
+    height: 21.875rem;
+    margin: 0 auto;
 }
 
-.status-text h3 {
-  margin: 0 0 8px 0;
-  font-size: 18px;
-  color: #fff;
+/* Outer Rings */
+.outer-ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    border: 0.0625rem solid rgba(0, 255, 255, 0.2);
+    border-radius: 50%;
+    animation: ringRotate 20s linear infinite;
 }
 
-.status-text p {
-  margin: 4px 0;
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 14px;
+.ring-1 {
+    width: 20rem;
+    height: 20rem;
+    margin: -10rem 0 0 -10rem;
+    border-style: dashed;
 }
 
-.expiry-time {
-  color: #ffaa00 !important;
-  font-weight: bold;
+.ring-2 {
+    width: 22.5rem;
+    height: 22.5rem;
+    margin: -11.25rem 0 0 -11.25rem;
+    animation-duration: 30s;
+    animation-direction: reverse;
 }
 
-.rental-actions {
-  display: flex;
-  gap: 15px;
+.ring-3 {
+    width: 25rem;
+    height: 25rem;
+    margin: -12.5rem 0 0 -12.5rem;
+    border-style: dotted;
+    animation-duration: 40s;
 }
 
-.btn {
-  flex: 1;
-  padding: 15px 25px;
-  border: none;
-  border-radius: 12px;
-  font-size: 16px;
-  font-weight: bold;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  transition: all 0.3s ease;
+@keyframes ringRotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
 }
 
-.btn-icon {
-  font-size: 20px;
+/* Progress Ring */
+.progress-ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-90deg);
+}
+
+.progress-ring-bg {
+    fill: none;
+    stroke: rgba(0, 255, 255, 0.1);
+    stroke-width: 6;
+}
+
+.progress-ring-circle {
+    fill: none;
+    stroke: url(#progressGradient);
+    stroke-width: 6;
+    stroke-dasharray: 754;
+    stroke-dashoffset: 0;
+    stroke-linecap: round;
+    filter: url(#glow);
+    transition: stroke-dashoffset 0.5s ease;
+}
+
+/* Turbine */
+.turbine-wrapper {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 12.5rem;
+    height: 12.5rem;
+}
+
+.turbine-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10;
+}
+
+.center-core {
+    width: 2.5rem;
+    height: 2.5rem;
+    background: radial-gradient(circle, #00ffff 0%, #0088ff 100%);
+    border-radius: 50%;
+    box-shadow: 
+        0 0 1.25rem rgba(0, 255, 255, 0.8),
+        0 0 2.5rem rgba(0, 255, 255, 0.4),
+        inset 0 0 1.25rem rgba(255, 255, 255, 0.3);
+    animation: corePulse 2s ease-in-out infinite;
+}
+
+@keyframes corePulse {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 1.25rem rgba(0, 255, 255, 0.8); }
+    50% { transform: scale(1.1); box-shadow: 0 0 2.5rem rgba(0, 255, 255, 1); }
+}
+
+.center-ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 3.75rem;
+    height: 3.75rem;
+    margin: -1.875rem 0 0 -1.875rem;
+    border: 0.125rem solid rgba(0, 255, 255, 0.5);
+    border-radius: 50%;
+    animation: ringPulse 2s ease-in-out infinite;
+}
+
+@keyframes ringPulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.2); opacity: 0.5; }
+}
+
+.blade-container {
+    width: 100%;
+    height: 100%;
+    animation: bladeRotate 3s linear infinite;
+}
+
+@keyframes bladeRotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.blade {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+}
+
+.blade:nth-child(1) { transform: rotate(0deg); }
+.blade:nth-child(2) { transform: rotate(120deg); }
+.blade:nth-child(3) { transform: rotate(240deg); }
+
+.blade-inner {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 0.9375rem solid transparent;
+    border-right: 0.9375rem solid transparent;
+    border-bottom: 6.25rem solid rgba(0, 255, 255, 0.8);
+    filter: drop-shadow(0 0 0.625rem rgba(0, 255, 255, 0.6));
+}
+
+.blade-glow {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 1.25rem;
+    height: 6.25rem;
+    background: linear-gradient(180deg, 
+        rgba(0, 255, 255, 0.4) 0%, 
+        transparent 100%);
+    filter: blur(0.5rem);
 }
 
 .btn-rent {
-  background: linear-gradient(135deg, #00ff88 0%, #00cc6a 100%);
-  color: #000;
-  box-shadow: 0 5px 20px rgba(0, 255, 136, 0.3);
+    background: linear-gradient(180deg, rgba(0, 255, 81, 0) 0%, rgba(0, 255, 81, 0.5) 100%);
+    border: 0.125rem solid #00ff51;
+    border-radius: 0.9375rem;
+    color: #00ff51;
+    padding: 1.25rem 3.125rem;
+    font-size: 1.25rem;
+    font-weight: 900;
+    letter-spacing: 0.125rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-transform: uppercase;
+    box-shadow: 0 0 1.25rem rgba(0, 255, 81, 0.4);
+    font-family: 'Goldman', sans-serif;
 }
 
 .btn-rent:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 30px rgba(0, 255, 136, 0.5);
+    background: rgba(0, 255, 136, 0.2);
+    box-shadow: 0 0 1.875rem rgba(0, 255, 136, 0.6);
+    transform: translateY(-0.125rem);
 }
 
-.btn-close {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+.rented-status {
+    display: flex;
+    align-items: center;
+    gap: 0.9375rem;
+    padding: 1.25rem 2.5rem;
+    background: rgba(255, 68, 68, 0.1);
+    border: 0.125rem solid rgba(255, 68, 68, 0.5);
+    border-radius: 0.9375rem;
 }
 
-.btn-close:hover {
-  background: rgba(255, 255, 255, 0.15);
+.rented-status .status-icon {
+    font-size: 2rem;
+}
+
+.rented-status .status-text {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #ff4444;
+    letter-spacing: 0.125rem;
+}
+
+.info-card-rental {
+    background: rgba(0, 255, 255, 0.05);
+    border: 0.125rem solid rgba(0, 255, 255, 0.3);
+    border-radius: 0.9375rem;
+    padding: 0.9rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.625rem;
+    transition: all 0.3s;
+    text-align: center;
+    min-height: 10rem;
+    background: #5D5D5F4D;
+
+}
+
+.info-card-rental:hover {
+    background: rgba(0, 255, 255, 0.1);
+    border-color: rgba(0, 255, 255, 0.5);
+    transform: translateY(-0.125rem);
+}
+
+.info-icon-rental {
+    font-size: 2.5rem;
+    margin-bottom: 0.625rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.info-icon-img {
+    width: 2rem;
+    height: 2rem;
+    object-fit: contain;
+    filter: drop-shadow(0 0 0.625rem rgba(0, 255, 255, 0.6));
+}
+
+.info-label-rental {
+    font-size: 1.5rem;
+    color: rgba(255, 255, 255, 0.8);
+    letter-spacing: 0.0625rem;
+    font-weight: 400;
+    margin-bottom: 0.3125rem;
+    font-family: 'Baloo 2', cursive;
+}
+
+.info-value-rental {
+    font-size: 1.5rem;
+    font-weight: 900;
+    color: #00ff51;
+    text-shadow: 0 0 0.9375rem rgba(0, 255, 136, 0.8);
+    letter-spacing: 0.0625rem;
+    line-height: 1.4;
+    font-family: 'Baloo 2', cursive;
+}
+
+.owner-info {
+    background: rgba(255, 170, 0, 0.1);
+    border: 0.125rem solid rgba(255, 170, 0, 0.3);
+    border-radius: 0.9375rem;
+    padding: 1.25rem;
+    margin-top: 1.25rem;
+}
+
+.owner-label {
+    font-size: 0.875rem;
+    color: rgba(255, 170, 0, 0.6);
+    margin-bottom: 0.3125rem;
+}
+
+.owner-name {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: #ffaa00;
+    text-shadow: 0 0 0.625rem rgba(255, 170, 0, 0.6);
+    margin-bottom: 0.625rem;
+}
+
+.expiry-time {
+    font-size: 0.8125rem;
+    color: rgba(255, 255, 255, 0.7);
 }
 </style>

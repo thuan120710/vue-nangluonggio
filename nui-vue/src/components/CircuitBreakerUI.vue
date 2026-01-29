@@ -1,5 +1,7 @@
 <template>
-  <div class="container">
+  <div class="main-wrapper">
+    <div class="background-image"></div>
+    <div class="container">
     <div class="bg-grid"></div>
     <div class="header">
       <div class="header-left">
@@ -81,6 +83,7 @@
         Cầu dao đã sửa: <span>{{ completedCount }}</span>/4
       </div>
     </div>
+  </div>
   </div>
 </template>
 
