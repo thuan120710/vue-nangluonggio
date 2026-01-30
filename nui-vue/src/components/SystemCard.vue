@@ -7,7 +7,12 @@
     <div class="system-card" :data-status="statusType">
       <div class="card-glow"></div>
       <div class="system-icon">
-        <img :src="systemIcon" :alt="systemLabel" class="system-icon-img" />
+        <img v-if="system === 'stability'" src="/img/trucxoay.png" :alt="systemLabel" class="system-icon-img" />
+        <img v-else-if="system === 'electric'" src="/img/dien.png" :alt="systemLabel" class="system-icon-img" />
+        <img v-else-if="system === 'lubrication'" src="/img/banhrang.png" :alt="systemLabel" class="system-icon-img" />
+        <img v-else-if="system === 'blades'" src="/img/khoang.png" :alt="systemLabel" class="system-icon-img" />
+        <img v-else-if="system === 'safety'" src="/img/chuachay.png" :alt="systemLabel" class="system-icon-img" />
+        <img v-else src="/img/banhrang.png" :alt="systemLabel" class="system-icon-img" />
       </div>
       <div class="system-circle">
         <svg class="circle-svg" width="90" height="90">
@@ -59,30 +64,30 @@ export default {
   setup(props) {
     const systemConfig = {
       stability: {
-        icon: '/img/trucxoay.png',
+        icon: 'img/trucxoay.png',
         label: 'TRỤC XOAY'
       },
       electric: {
-        icon: '/img/dien.png',
+        icon: 'img/dien.png',
         label: 'ĐIỆN ÁP'
       },
       lubrication: {
-        icon: '/img/banhrang.png',
+        icon: 'img/banhrang.png',
         label: 'ỔN ĐỊNH'
       },
       blades: {
-        icon: '/img/khoang.png',
+        icon: 'img/khoang.png',
         label: 'KẾT CẤU'
       },
       safety: {
-        icon: '/img/chuachay.png',
+        icon: 'img/chuachay.png',
         label: 'AN TOÀN'
       }
     }
     
     const config = computed(() => systemConfig[props.system] || {})
     
-    const systemIcon = computed(() => config.value.icon || '/img/banhrang.png')
+    const systemIcon = computed(() => config.value.icon || 'img/banhrang.png')
     const systemLabel = computed(() => config.value.label || props.system.toUpperCase())
     
     const circleOffset = computed(() => {

@@ -43,7 +43,7 @@
         <!-- Efficiency -->
         <div class="stat-item">
           <div class="stat-header">
-            <span class="stat-label">HIỆU SUẤT <span class="info-icon">ℹ</span></span>
+            <span class="stat-label">HIỆU SUẤT <img src="/img/i.png" alt="info" class="info-icon-img"></span>
             <span class="stat-percent">{{ Math.floor(efficiency) }}%</span>
           </div>
           <div class="stat-bar">
@@ -54,7 +54,7 @@
         <!-- Fuel -->
         <div class="stat-item">
           <div class="stat-header">
-            <span class="stat-label">XĂNG <span class="info-icon">ℹ</span></span>
+            <span class="stat-label">XĂNG <img src="/img/i.png" alt="info" class="info-icon-img"></span>
             <span class="stat-percent red">30%</span>
           </div>
           <div class="stat-bar">
@@ -157,7 +157,7 @@
       <div class="right-panel">
         <!-- Income Rate -->
         <div class="income-item">
-          <div class="income-label">THU NHẬP <span class="info-icon">ℹ</span></div>
+          <div class="income-label">THU NHẬP <img src="/img/i.png" alt="info" class="info-icon-img"></div>
           <div class="income-value">{{ earningRateDisplay }} IC/GIỜ</div>
         </div>
 
