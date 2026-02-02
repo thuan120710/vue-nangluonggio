@@ -160,28 +160,37 @@ body {
 }
 
 .header-center h1 {
-    font-size: 1.5rem;
-    font-weight: 900;
     letter-spacing: 0.1875rem;
     background: linear-gradient(180deg, #80F0FF 0%, #00C4DD 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    text-shadow: 0 0 1.875rem rgba(0, 255, 255, 0.5);
     white-space: nowrap;
+    font-family: Goldman;
+    font-size: 1.5rem;
+    font-style: normal;
+    font-weight: 700;
+    line-height: normal;
+
 }
 
 .subtitle {
-    font-size: 0.7875rem;
+    font-size: 0.75rem;
     color: #80f0ff;
     letter-spacing: 0.0625rem;
     font-weight: 400;
 }
 
 .subtitle-highlight {
-    color: #ffaa00;
-    font-weight: 700;
-    text-shadow: 0 0 0.625rem rgba(255, 170, 0, 0.8);
     padding: 0px 10px;
+    font-family: Goldman;
+    font-size: 0.75rem;
+    font-style: normal;
+    font-weight: 700;
+    line-height: normal;
+    background: linear-gradient(180deg, #FFEDA5 0%, #FECD08 100%);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
 }
 
 .header-right {
@@ -200,10 +209,15 @@ body {
 }
 
 .time-value {
-    font-size: 1rem;
+    font-family: Goldman;
+    font-size: 0.75rem;
+    font-style: normal;
     font-weight: 700;
-    color: #ffaa00;
-    text-shadow: 0 0 0.625rem rgba(255, 170, 0, 0.8);
+    line-height: normal;
+    background: linear-gradient(180deg, #FFEDA5 0%, #FECD08 100%);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
 }
 
 .close-btn {
@@ -276,7 +290,6 @@ body {
     background: linear-gradient(180deg, #80F0FF 0%, #00C4DD 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    text-shadow: 0 0 0.625rem rgba(0, 255, 255, 0.6);
 }
 
 .stat-label.center {
@@ -816,8 +829,8 @@ body {
 }
 
 .system-icon-img {
-    width: 2rem;
-    height: 2rem;
+    width: 1.5rem;
+    height: 1.5rem;
     object-fit: contain;
     filter: drop-shadow(0 0 0.5rem rgba(0, 255, 255, 0.6));
 }
@@ -1203,11 +1216,6 @@ body {
     flex: 1;
 }
 
-.stat-label {
-    font-size: 16px;
-    color: rgba(0, 255, 255, 0.6);
-    letter-spacing: 2px;
-}
 
 .stat-value {
     font-size: 24px;

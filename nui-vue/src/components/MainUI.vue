@@ -371,3 +371,14 @@ export default {
   }
 }
 </script>
+
+<style scoped>
+/* Header override for Main UI */
+.header-logo {
+    left: 3.5rem;
+}
+
+.close-btn {
+    right: 3.5rem;
+}
+</style>
