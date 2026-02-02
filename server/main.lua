@@ -10,6 +10,7 @@ QBCore = exports['qb-core']:GetCoreObject()
 
 -- Dữ liệu thuê trạm (lưu ở server)
 local TurbineRentals = {}
+local TurbineExpiryGracePeriod = {} -- Lưu thời gian grace period (4 giờ để rút tiền)
 
 -- Khởi tạo: Reset GlobalState khi script start
 CreateThread(function()
@@ -18,41 +19,110 @@ CreateThread(function()
         isRented = false,
         ownerName = nil,
         citizenid = nil,
-        expiryTime = nil
+        expiryTime = nil,
+        withdrawDeadline = nil,
+        isGracePeriod = false
     }
 end)
 
 -- Helper: Broadcast rental status qua StateBag (tất cả client tự động nhận - KHÔNG CẦN CHECK LIÊN TỤC!)
 local function BroadcastRentalStatus(turbineId)
     local rentalData = TurbineRentals[turbineId]
+    local graceData = TurbineExpiryGracePeriod[turbineId]
     
     if rentalData then
         GlobalState['turbine_' .. turbineId] = {
             isRented = true,
             ownerName = rentalData.ownerName,
             citizenid = rentalData.citizenid,
-            expiryTime = rentalData.expiryTime
+            expiryTime = rentalData.expiryTime,
+            withdrawDeadline = nil,
+            isGracePeriod = false
+        }
+    elseif graceData then
+        -- Đang trong grace period (4 giờ để rút tiền)
+        GlobalState['turbine_' .. turbineId] = {
+            isRented = false,
+            ownerName = graceData.ownerName,
+            citizenid = graceData.citizenid,
+            expiryTime = graceData.expiryTime,
+            withdrawDeadline = graceData.withdrawDeadline,
+            isGracePeriod = true
         }
     else
         GlobalState['turbine_' .. turbineId] = {
             isRented = false,
             ownerName = nil,
             citizenid = nil,
-            expiryTime = nil
+            expiryTime = nil,
+            withdrawDeadline = nil,
+            isGracePeriod = false
         }
     end
 end
 
 -- Helper: Kiểm tra hết hạn
 local function CheckRentalExpiry(turbineId)
+    local currentTime = os.time()
+    
+    -- Kiểm tra grace period trước
+    if TurbineExpiryGracePeriod[turbineId] then
+        local graceData = TurbineExpiryGracePeriod[turbineId]
+        
+        -- Nếu hết grace period (4 giờ), reset hoàn toàn
+        if currentTime >= graceData.withdrawDeadline then
+            TurbineExpiryGracePeriod[turbineId] = nil
+            BroadcastRentalStatus(turbineId)
+            
+            -- Thông báo cho owner nếu đang online
+            if graceData.playerId then
+                TriggerClientEvent('QBCore:Notify', graceData.playerId, 
+                    '⚠️ Hết thời gian rút tiền! Trạm đã được reset.', 
+                    'error', 5000)
+            end
+            
+            return true
+        end
+        
+        return false
+    end
+    
+    -- Kiểm tra rental bình thường
     if not TurbineRentals[turbineId] then return false end
     
-    local currentTime = os.time()
     local rentalData = TurbineRentals[turbineId]
     
+    -- Nếu hết 7 ngày, chuyển sang grace period (4 giờ)
     if currentTime >= rentalData.expiryTime then
+        -- Chuyển sang grace period
+        TurbineExpiryGracePeriod[turbineId] = {
+            citizenid = rentalData.citizenid,
+            ownerName = rentalData.ownerName,
+            playerId = rentalData.playerId,
+            expiryTime = rentalData.expiryTime,
+            withdrawDeadline = currentTime + (4 * 60 * 60) -- 4 giờ
+        }
+        
+        -- Xóa rental data
         TurbineRentals[turbineId] = nil
-        BroadcastRentalStatus(turbineId) -- Broadcast ngay khi hết hạn
+        
+        -- Broadcast
+        BroadcastRentalStatus(turbineId)
+        
+        -- Thông báo cho owner nếu đang online
+        if rentalData.playerId then
+            TriggerClientEvent('QBCore:Notify', rentalData.playerId, 
+                '⚠️ Hết thời hạn thuê! Bạn có 4 giờ để rút tiền.', 
+                'warning', 8000)
+            
+            -- Gửi phone notification
+            local phoneNumber = exports["lb-phone"]:GetEquippedPhoneNumber(rentalData.playerId)
+            if phoneNumber then
+                local expiryMsg = "⚠️ Hết thời hạn thuê Trạm Điện Gió\n\n⏰ Bạn có 4 giờ để rút tiền!\n\n💰 Hãy vào trạm và rút tiền ngay.\n\n⚠️ Sau 4 giờ, trạm sẽ được reset và bạn sẽ mất toàn bộ tiền chưa rút!"
+                exports['lb-phone']:SendMessage('Trạm Điện Gió', tostring(phoneNumber), expiryMsg, nil, nil, nil)
+            end
+        end
+        
         return true
     end
     
@@ -64,6 +134,68 @@ local function GetRentalInfo(turbineId)
     CheckRentalExpiry(turbineId)
     return TurbineRentals[turbineId]
 end
+
+-- Helper: Lấy thông tin grace period
+local function GetGracePeriodInfo(turbineId)
+    CheckRentalExpiry(turbineId)
+    return TurbineExpiryGracePeriod[turbineId]
+end
+
+-- Event: Rút tiền trong grace period
+RegisterNetEvent('windturbine:expiryWithdraw')
+AddEventHandler('windturbine:expiryWithdraw', function(turbineId, amount)
+    local playerId = source
+    local Player = QBCore.Functions.GetPlayer(playerId)
+    
+    if not Player then
+        TriggerClientEvent('QBCore:Notify', playerId, '❌ Lỗi hệ thống!', 'error')
+        return
+    end
+    
+    -- Kiểm tra grace period
+    CheckRentalExpiry(turbineId)
+    local graceData = TurbineExpiryGracePeriod[turbineId]
+    
+    if not graceData then
+        TriggerClientEvent('QBCore:Notify', playerId, '❌ Không có tiền để rút!', 'error')
+        return
+    end
+    
+    -- Kiểm tra owner
+    local citizenid = Player.PlayerData.citizenid
+    if graceData.citizenid ~= citizenid then
+        TriggerClientEvent('QBCore:Notify', playerId, '❌ Bạn không phải chủ trạm này!', 'error')
+        return
+    end
+    
+    -- Kiểm tra số tiền
+    if not amount or amount <= 0 then
+        TriggerClientEvent('QBCore:Notify', playerId, '❌ Không có tiền để rút!', 'error')
+        return
+    end
+    
+    -- Rút tiền thành công
+    Player.Functions.AddMoney('cash', amount)
+    
+    -- Reset trạm về trạng thái có thể thuê lại
+    TurbineExpiryGracePeriod[turbineId] = nil
+    BroadcastRentalStatus(turbineId)
+    
+    -- Thông báo
+    TriggerClientEvent('QBCore:Notify', playerId, 
+        string.format('✅ Đã rút $%s IC thành công!', string.format("%d", amount)), 
+        'success', 5000)
+    
+    TriggerClientEvent('windturbine:expiryWithdrawSuccess', playerId)
+    
+    -- Gửi phone notification
+    local phoneNumber = exports["lb-phone"]:GetEquippedPhoneNumber(playerId)
+    if phoneNumber then
+        local withdrawMsg = string.format("💰 Rút tiền thành công\n\nSố tiền: $%s IC\nThời gian: %s\n\n✅ Trạm đã được reset. Bạn có thể thuê lại bất cứ lúc nào!", 
+            string.format("%d", amount), os.date("%H:%M:%S - %d/%m/%Y"))
+        exports['lb-phone']:SendMessage('Trạm Điện Gió', tostring(phoneNumber), withdrawMsg, nil, nil, nil)
+    end
+end)
 
 -- Event: Rút tiền
 RegisterNetEvent('windturbine:withdrawEarnings')

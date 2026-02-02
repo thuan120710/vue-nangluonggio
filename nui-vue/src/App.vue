@@ -71,6 +71,17 @@
       @withdraw="handleWithdraw"
       @back="handleBackToMain"
     />
+    
+    <!-- Expiry Withdraw UI -->
+    <ExpiryWithdrawUI
+      v-if="currentView === 'expiryWithdraw'"
+      :earnings="currentEarnings"
+      :ownerName="ownerName"
+      :expiryTime="expiryTime"
+      :withdrawDeadline="withdrawDeadline"
+      @close="handleClose"
+      @withdraw="handleExpiryWithdraw"
+    />
   </div>
 </template>
 
@@ -83,6 +94,7 @@ import FanMinigameUI from './components/FanMinigameUI.vue'
 import CircuitBreakerUI from './components/CircuitBreakerUI.vue'
 import CrackRepairUI from './components/CrackRepairUI.vue'
 import EarningsUI from './components/EarningsUI.vue'
+import ExpiryWithdrawUI from './components/ExpiryWithdrawUI.vue'
 import { post } from './utils/api'
 
 export default {
@@ -94,7 +106,8 @@ export default {
     FanMinigameUI,
     CircuitBreakerUI,
     CrackRepairUI,
-    EarningsUI
+    EarningsUI,
+    ExpiryWithdrawUI
   },
   setup() {
     const currentView = ref('hidden')
@@ -108,6 +121,7 @@ export default {
     const maxHours = ref(12)
     const ownerName = ref('N/A')
     const expiryTime = ref(null)
+    const withdrawDeadline = ref(null)
     
     const rentalData = ref({
       isRented: false,
@@ -171,6 +185,10 @@ export default {
       post('minigameResult', result)
     }
     
+    const handleExpiryWithdraw = () => {
+      post('expiryWithdraw')
+    }
+    
     // Message handler from client
     const handleMessage = (event) => {
       const data = event.data
@@ -229,6 +247,14 @@ export default {
           currentView.value = 'earnings'
           if (data.earnings !== undefined) currentEarnings.value = data.earnings
           if (data.efficiency !== undefined) currentEfficiency.value = data.efficiency
+          break
+          
+        case 'showExpiryWithdrawUI':
+          currentView.value = 'expiryWithdraw'
+          if (data.earnings !== undefined) currentEarnings.value = data.earnings
+          if (data.ownerName !== undefined) ownerName.value = data.ownerName
+          if (data.expiryTime !== undefined) expiryTime.value = data.expiryTime
+          if (data.withdrawDeadline !== undefined) withdrawDeadline.value = data.withdrawDeadline
           break
           
         case 'updateSystems':
@@ -317,6 +343,20 @@ export default {
           }
         }
       }
+      
+      // F4 to toggle ExpiryWithdrawUI
+      if (event.key === 'F4') {
+        if (currentView.value === 'expiryWithdraw') {
+          currentView.value = 'hidden'
+        } else {
+          // Show ExpiryWithdrawUI with test data
+          currentView.value = 'expiryWithdraw'
+          currentEarnings.value = 13500
+          ownerName.value = 'Test User'
+          expiryTime.value = Math.floor(Date.now() / 1000) - 100 // Expired 100 seconds ago
+          withdrawDeadline.value = Math.floor(Date.now() / 1000) + (3 * 60 * 60 + 45 * 60) // 3h 45m remaining
+        }
+      }
     }
     
     onMounted(() => {
@@ -336,6 +376,7 @@ export default {
       maxHours,
       ownerName,
       expiryTime,
+      withdrawDeadline,
       rentalData,
       minigameData,
       currentRound,

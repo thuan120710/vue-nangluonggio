@@ -1,0 +1,82 @@
+<section id="dashboard-ui" class="dashboard-container">
+  <!-- Header Section -->
+  <header class="dashboard-header">
+    <!-- Logo -->
+    <div class="header-logo">
+      <img
+        src="${ASSET_PATH}/a6c7410b0da6c27ebdc085904f4a8db07969c143.png"
+        alt="F17 City Logo"
+      />
+    </div>
+
+    <!-- Info Bar (User & Time) -->
+    <div class="header-info-bar">
+      <div class="info-group user-group">
+        <span class="label-text cyan-gradient">Người thuê:</span>
+        <span class="value-text yellow-gradient">Kemnie</span>
+      </div>
+
+      <div class="info-group time-group">
+        <span class="label-text cyan-gradient">Thời gian thuê còn lại:</span>
+        <span class="value-text red-text">0h 0p</span>
+      </div>
+    </div>
+
+    <!-- Exit Button -->
+    <div class="header-exit">
+      <button class="btn-exit">
+        <img src="${ASSET_PATH}/16_606.svg" alt="Exit" />
+      </button>
+    </div>
+
+    <!-- Centered Title (Absolute) -->
+    <h1 class="header-title cyan-gradient">TRẠM KHAI THÁC ĐIỆN GIÓ</h1>
+  </header>
+
+  <!-- Main Content Section -->
+  <div class="dashboard-content">
+    <!-- Left Column: System Status -->
+    <div class="col-left">
+      <div class="turbine-container">
+        <img
+          src="${ASSET_PATH}/06fd033fc397eb6e757ee73a8fa7fed015cc98e4.png"
+          alt="Wind Turbine"
+          class="turbine-img"
+        />
+      </div>
+
+      <div class="status-panel">
+        <h2 class="status-title cyan-gradient">TRẠNG THÁI HỆ THỐNG</h2>
+        <div class="status-indicator">
+          <img
+            src="${ASSET_PATH}/16_770.svg"
+            alt="Status Dot"
+            class="status-dot"
+          />
+          <span class="status-text">OFFLINE - HẾT THỜI GIAN THUÊ</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column: Income & Actions -->
+    <div class="col-right">
+      <div class="income-panel">
+        <div class="income-circle-bg"></div>
+        <h2 class="income-title cyan-gradient">TỔNG THU NHẬP</h2>
+        <div class="income-value">13,500 IC</div>
+      </div>
+
+      <div class="action-panel">
+        <div class="withdraw-timer">
+          <span class="timer-label">THỜI GIAN RÚT TIỀN CÒN LẠI:</span>
+          <span class="timer-value">3h30p</span>
+        </div>
+
+        <button class="btn-withdraw">
+          <img src="${ASSET_PATH}/16_764.svg" alt="Icon" />
+          <span>RÚT TIỀN</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</section>

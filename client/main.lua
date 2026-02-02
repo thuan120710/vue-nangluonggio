@@ -21,6 +21,8 @@ local rentalStatus = {
     isOwner = false,
     ownerName = nil,
     expiryTime = nil,
+    withdrawDeadline = nil,
+    isGracePeriod = false,
     rentalPrice = 0
 }
 
@@ -77,6 +79,8 @@ CreateThread(function()
         isOwner = false,
         ownerName = nil,
         expiryTime = nil,
+        withdrawDeadline = nil,
+        isGracePeriod = false,
         rentalPrice = Config.RentalPrice
     }
     
@@ -84,18 +88,23 @@ CreateThread(function()
     AddStateBagChangeHandler('turbine_' .. turbineId, 'global', function(bagName, key, value)
         if value then
             local Player = QBCore.Functions.GetPlayerData()
-            local isOwner = value.isRented and Player.citizenid == value.citizenid
+            local isOwner = (value.isRented and Player.citizenid == value.citizenid) or 
+                           (value.isGracePeriod and Player.citizenid == value.citizenid)
             
             rentalStatus.isRented = value.isRented
             rentalStatus.isOwner = isOwner
             rentalStatus.ownerName = value.ownerName
             rentalStatus.expiryTime = value.expiryTime
+            rentalStatus.withdrawDeadline = value.withdrawDeadline
+            rentalStatus.isGracePeriod = value.isGracePeriod or false
         else
             -- Server reset hoặc trạm hết hạn → Reset client
             rentalStatus.isRented = false
             rentalStatus.isOwner = false
             rentalStatus.ownerName = nil
             rentalStatus.expiryTime = nil
+            rentalStatus.withdrawDeadline = nil
+            rentalStatus.isGracePeriod = false
         end
     end)
     
@@ -332,8 +341,27 @@ local function OpenRentalUI()
     })
 end
 
+-- Mở UI rút tiền khi hết hạn (grace period)
+local function OpenExpiryWithdrawUI()
+    SetNuiFocus(true, true)
+    SendNUIMessage({
+        action = 'showExpiryWithdrawUI',
+        earnings = currentEarnings,
+        ownerName = rentalStatus.ownerName,
+        expiryTime = rentalStatus.expiryTime,
+        withdrawDeadline = rentalStatus.withdrawDeadline
+    })
+end
+
 -- Mở UI chính
 local function OpenMainUI()
+    -- Kiểm tra grace period trước
+    if rentalStatus.isGracePeriod and rentalStatus.isOwner then
+        -- Đang trong grace period (4 giờ để rút tiền)
+        OpenExpiryWithdrawUI()
+        return
+    end
+    
     -- Kiểm tra trạng thái thuê trước khi mở UI
     if not rentalStatus.isRented then
         -- Chưa thuê -> Hiển thị UI thuê trạm
@@ -615,6 +643,26 @@ RegisterNUICallback('backToMain', function(data, cb)
     cb('ok')
 end)
 
+-- NUI Callback: Rút tiền trong grace period
+RegisterNUICallback('expiryWithdraw', function(data, cb)
+    local amount = math.floor(playerData.earningsPool)
+    
+    if amount <= 0 then
+        QBCore.Functions.Notify('❌ Không có tiền để rút!', 'error')
+        cb('ok')
+        return
+    end
+    
+    -- Gửi request lên server
+    TriggerServerEvent('windturbine:expiryWithdraw', turbineId, amount)
+    
+    -- Reset earnings pool
+    playerData.earningsPool = 0
+    currentEarnings = 0
+    
+    cb('ok')
+end)
+
 -- NUI Callback: Thuê trạm
 RegisterNUICallback('rentTurbine', function(data, cb)
     local rentalPrice = Config.RentalPrice or 0
@@ -668,6 +716,18 @@ AddEventHandler('windturbine:withdrawSuccess', function(amount)
     })
     
     QBCore.Functions.Notify(string.format('💰 Đã rút $%d từ quỹ tiền lương!', amount), 'success')
+end)
+
+RegisterNetEvent('windturbine:expiryWithdrawSuccess')
+AddEventHandler('windturbine:expiryWithdrawSuccess', function()
+    -- Reset player data
+    playerData.earningsPool = 0
+    currentEarnings = 0
+    
+    -- Đóng UI
+    CloseUI()
+    
+    QBCore.Functions.Notify('✅ Đã rút tiền thành công! Trạm đã được reset.', 'success', 5000)
 end)
 
 -- Thread: Cập nhật thời gian làm việc liên tục (mỗi giây)
