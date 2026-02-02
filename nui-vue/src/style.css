@@ -16,7 +16,7 @@ html {
 }
 
 /* Responsive font sizes */
-@media (max-width: 1920px) {
+/* @media (max-width: 1920px) {
     html { font-size: 16px; }
 }
 
@@ -30,7 +30,7 @@ html {
 
 @media (max-width: 1024px) {
     html { font-size: 10px; }
-}
+} */
 
 body {
     font-family: 'Goldman', sans-serif;
@@ -73,6 +73,34 @@ body {
     z-index: 1;
 }
 
+/* Responsive scaling for container and background */
+@media (max-width: 1600px) {
+    .container {
+        transform: translate(-50%, -50%) scale(0.95);
+    }
+    .background-image {
+        transform: scale(0.95);
+    }
+}
+
+@media (max-width: 1366px) {
+    .container {
+        transform: translate(-50%, -50%) scale(0.85);
+    }
+    .background-image {
+        transform: scale(0.85);
+    }
+}
+
+@media (max-width: 1024px) {
+    .container {
+        transform: translate(-50%, -50%) scale(0.7);
+    }
+    .background-image {
+        transform: scale(0.7);
+    }
+}
+
 .hidden {
     display: none !important;
 }
@@ -89,11 +117,12 @@ body {
 /* Header */
 .header {
     background: transparent;
-    padding: 1.875rem 10.75rem;
+    padding: 1.875rem 12rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
     position: relative;
+    margin-top: 10px;
 }
 
 .header-logo {
@@ -202,7 +231,7 @@ body {
 
 /* Content */
 .content {
-    padding: 3rem 11.5rem;
+    padding: 2.5rem 11.5rem;
     display: flex;
     gap: 1.875rem;
     align-items: center;
@@ -215,7 +244,7 @@ body {
     flex: 0 0 17.5rem;
     display: flex;
     flex-direction: column;
-    gap: 2.1875rem;
+    gap: 2.254rem;
     margin-left: 14px;
 }
 
@@ -228,7 +257,7 @@ body {
 .stat-item {
     display: flex;
     flex-direction: column;
-    gap: 1.125rem;
+    gap: 1.2rem;
 }
 
 .stat-header {
@@ -238,9 +267,12 @@ body {
 }
 
 .stat-label {
-    font-size: 0.875rem;
-    font-weight: 700;
     letter-spacing: 0.125rem;
+    font-family: Goldman;
+    font-size: 1rem;
+    font-style: normal;
+    font-weight: 700;
+    line-height: normal;
     background: linear-gradient(180deg, #80F0FF 0%, #00C4DD 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -250,7 +282,8 @@ body {
 .stat-label.center {
     text-align: center;
     width: 100%;
-    margin-bottom: 0.625rem;
+    /* margin-bottom: 0.625rem; */
+    font-weight:400;
 }
 
 /* Info Icon Style */
@@ -329,7 +362,7 @@ body {
     justify-content: center;
     gap: 0.625rem;
     font-size: 1rem;
-    font-weight: 700;
+    font-weight: 400;
     color: rgba(255, 255, 255, 0.8);
 }
 
@@ -348,6 +381,23 @@ body {
 
 .status-text {
     letter-spacing: 0.125rem;
+    color: rgba(255, 255, 255, 0.50);
+    font-family: Goldman;
+    font-size: 1rem;
+    font-style: normal;
+    font-weight: 400;
+    line-height: normal;
+}
+
+.work-time-display {
+    margin-left: 0.625rem;
+    letter-spacing: 0.125rem;
+    color: rgba(255, 255, 255, 0.50);
+    font-family: Goldman;
+    font-size: 1rem;
+    font-style: normal;
+    font-weight: 400;
+    line-height: normal;
 }
 
 /* Turbine Section */
@@ -550,12 +600,12 @@ body {
 }
 
 .income-label {
-    font-size: 0.875rem;
+    font-size: 1rem;
     font-weight: 700;
     letter-spacing: 0.125rem;
     color: #00ffff;
     text-shadow: 0 0 0.625rem rgba(0, 255, 255, 0.6);
-    margin-bottom: 0.625rem;
+    margin-bottom: 1rem;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -563,7 +613,7 @@ body {
 }
 
 .income-value {
-    font-size: 1.75rem;
+    font-size: 1.25rem;
     font-weight: 900;
     color: #ffaa00;
     text-shadow: 0 0 1.25rem rgba(255, 170, 0, 0.8);
@@ -655,13 +705,17 @@ body {
 }
 
 .total-value {
-    font-size: 2rem;
-    font-weight: 900;
-    color: #00ff88;
-    text-shadow: 0 0 1.875rem rgba(0, 255, 136, 1);
     letter-spacing: 0.125rem;
     position: relative;
     z-index: 1;
+    color: #00FF51;
+    text-align: center;
+    text-shadow: 0 0 1.9px #4CBA6F;
+    font-family: Goldman;
+    font-size: 2rem;
+    font-style: normal;
+    font-weight: 700;
+    line-height: normal;
 }
 
 /* .btn-withdraw {
@@ -1194,8 +1248,11 @@ body {
 
 /* Fan Minigame Styles */
 .fan-minigame-content {
-    padding: 60px 40px;
+    padding: 0 40px 60px;
     min-height: 600px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
 }
 
 .fan-phase {
@@ -1205,7 +1262,7 @@ body {
 
 .fan-instruction {
     text-align: center;
-    margin-bottom: 50px;
+    margin-bottom: 10px;
 }
 
 .instruction-icon {
@@ -1240,7 +1297,7 @@ body {
     position: relative;
     width: 400px;
     height: 400px;
-    margin: 0 auto 40px;
+    margin: 0 auto 30px;
     background: radial-gradient(circle, rgba(0, 255, 255, 0.05) 0%, transparent 70%);
     border: 2px solid rgba(0, 255, 255, 0.2);
     border-radius: 50%;
@@ -1450,7 +1507,7 @@ body {
     font-size: 18px;
     color: rgba(0, 255, 255, 0.8);
     letter-spacing: 2px;
-    margin-bottom: 20px;
+    margin-bottom: 15px;
 }
 
 .progress-bar-container {
@@ -1461,7 +1518,7 @@ body {
     border-radius: 20px;
     overflow: hidden;
     position: relative;
-    margin-bottom: 15px;
+    margin-bottom: 6px;
 }
 
 .progress-bar {
@@ -1508,13 +1565,16 @@ body {
 
 /* Circuit Breaker Minigame Styles */
 .circuit-breaker-content {
-    padding: 60px 40px;
+    padding: 10px 40px 60px;
     min-height: 600px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
 }
 
 .circuit-instruction {
     text-align: center;
-    margin-bottom: 50px;
+    margin-bottom: 15px;
 }
 
 .circuit-instruction .instruction-hint {
@@ -1562,18 +1622,24 @@ body {
 /* Breakers Panel */
 .breakers-panel {
     max-width: 900px;
-    margin: 0 auto 40px;
+    margin: 0 auto 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .panel-frame {
     background: linear-gradient(135deg, rgba(20, 25, 40, 0.95) 0%, rgba(15, 20, 35, 0.98) 100%);
     border: 3px solid rgba(0, 255, 255, 0.4);
     border-radius: 20px;
-    padding: 30px;
+    padding: 12px 30px 15px;
     box-shadow: 
         0 0 40px rgba(0, 255, 255, 0.3),
         inset 0 0 40px rgba(0, 255, 255, 0.05);
     position: relative;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
 }
 
 .panel-frame::before {
@@ -1592,8 +1658,8 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 30px;
-    padding-bottom: 15px;
+    margin-bottom: 12px;
+    padding-bottom: 6px;
     border-bottom: 2px solid rgba(0, 255, 255, 0.3);
 }
 
@@ -1620,20 +1686,29 @@ body {
 .breakers-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 25px;
-    margin-bottom: 30px;
+    gap: 20px;
+    margin-bottom: 12px;
+    align-items: center;
+    justify-items: center;
 }
 
 .breaker {
     background: rgba(0, 0, 0, 0.5);
     border: 2px solid rgba(255, 255, 255, 0.2);
     border-radius: 15px;
-    padding: 20px 15px;
+    padding: 18px 15px;
     cursor: grab;
     transition: all 0.3s;
     position: relative;
     overflow: hidden;
     user-select: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    max-width: 180px;
+    min-height: 240px;
 }
 
 .breaker.dragging {
@@ -1689,12 +1764,12 @@ body {
 }
 
 .breaker-label {
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 700;
     letter-spacing: 2px;
     color: rgba(0, 255, 255, 0.6);
     text-align: center;
-    margin-bottom: 15px;
+    margin-bottom: 0;
 }
 
 .breaker-body {
@@ -1702,12 +1777,14 @@ body {
     flex-direction: column;
     align-items: center;
     gap: 15px;
-    margin-bottom: 15px;
+    flex: 1;
+    justify-content: center;
+    width: 100%;
 }
 
 .breaker-indicator {
-    width: 30px;
-    height: 30px;
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
     background: #ff4444;
     box-shadow: 
@@ -1820,15 +1897,16 @@ body {
 }
 
 .breaker-rating {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 700;
     color: rgba(255, 255, 255, 0.5);
     text-align: center;
+    margin-top: 0;
 }
 
 /* Panel Footer */
 .panel-footer {
-    padding-top: 20px;
+    padding-top: 8px;
     border-top: 2px solid rgba(255, 170, 0, 0.3);
 }
 
@@ -1941,13 +2019,17 @@ body {
 
 /* Crack Repair Minigame Styles */
 .crack-repair-content {
-    padding: 60px 40px;
+    padding: 0px 40px 60px;
     min-height: 600px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    margin-top: -40px;
 }
 
 .crack-instruction {
     text-align: center;
-    margin-bottom: 50px;
+    margin-bottom: 5px;
 }
 
 .crack-instruction .instruction-hint {
@@ -1962,7 +2044,7 @@ body {
     position: relative;
     width: 600px;
     height: 500px;
-    margin: 0 auto 40px;
+    margin: 0 auto 5px;
     background: linear-gradient(135deg, rgba(40, 45, 60, 0.8) 0%, rgba(30, 35, 50, 0.9) 100%);
     border: 3px solid rgba(0, 255, 255, 0.3);
     border-radius: 20px;

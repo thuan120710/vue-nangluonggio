@@ -67,7 +67,7 @@
           <div class="stat-label center">TRẠNG THÁI HỆ THỐNG</div>
           <div class="status-display">
             <span class="status-dot" :class="{ online: isOnDuty }"></span>
-            <span class="status-text">{{ isOnDuty ? 'ONLINE' : 'OFFLINE' }}</span>
+            <span class="status-text">{{ fullStatusText }}</span>
           </div>
         </div>
 
@@ -290,12 +290,7 @@ export default {
     })
     
     const earningRateDisplay = computed(() => {
-      // Sử dụng earningRate từ server nếu có, nếu không thì tính toán
-      if (props.earningRate > 0) {
-        return Math.floor(props.earningRate).toLocaleString()
-      }
-      
-      // Fallback: tính toán dựa trên efficiency
+      // Luôn tính toán dựa trên efficiency để đồng bộ với EarningsUI
       const basePerHour = 5000
       const rate = basePerHour * (props.efficiency / 100)
       return Math.floor(rate).toLocaleString()
@@ -325,15 +320,31 @@ export default {
     
     const statusText = computed(() => {
       if (props.workLimitReached) {
-        return 'ĐÃ ĐẠT GIỚI HẠN - QUAY LẠI NGÀY MAI'
+        return 'ĐÃ ĐẠT GIỚI HẠN'
       }
       if (!props.isOnDuty) {
         return 'OFFLINE'
       }
-      // Hiển thị thời gian ngay khi online, mặc định 0h nếu chưa có data
-      const hours = props.workHours > 0 ? Math.floor(props.workHours * 10) / 10 : 0
-      return `ONLINE - ${hours}h/${props.maxHours}h`
+      return 'ONLINE'
     })
+    
+    const fullStatusText = computed(() => {
+      if (props.workLimitReached) {
+        return 'ĐÃ ĐẠT GIỚI HẠN'
+      }
+      if (!props.isOnDuty) {
+        return 'OFFLINE'
+      }
+      // Format: ONLINE - 0.2 / 12 GIỜ
+      const currentHours = (Math.floor(props.workHours * 10) / 10).toFixed(1)
+      const maxHoursFormatted = (Math.floor(props.maxHours * 10) / 10).toFixed(1)
+      return `ONLINE - ${currentHours} / ${maxHoursFormatted} GIỜ`
+    })
+    
+    const formatWorkTime = (hours) => {
+      // Hiển thị theo giờ với 1 số thập phân
+      return `${(Math.floor(hours * 10) / 10).toFixed(1)}h`
+    }
     
     const handleSystemClick = (system) => {
       if (!props.isOnDuty) {
@@ -352,6 +363,8 @@ export default {
       earningRateDisplay,
       remainingTime,
       statusText,
+      fullStatusText,
+      formatWorkTime,
       handleSystemClick,
       Math
     }

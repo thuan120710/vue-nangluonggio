@@ -193,8 +193,10 @@ export default {
           if (data.efficiency !== undefined) currentEfficiency.value = data.efficiency
           if (data.earnings !== undefined) currentEarnings.value = data.earnings
           if (data.onDuty !== undefined) isOnDuty.value = data.onDuty
-          if (data.ownerName) ownerName.value = data.ownerName
-          if (data.expiryTime) expiryTime.value = data.expiryTime
+          if (data.ownerName !== undefined) ownerName.value = data.ownerName
+          if (data.expiryTime !== undefined) expiryTime.value = data.expiryTime
+          if (data.workHours !== undefined) workHours.value = data.workHours
+          if (data.maxHours !== undefined) maxHours.value = data.maxHours
           break
           
         case 'hideUI':

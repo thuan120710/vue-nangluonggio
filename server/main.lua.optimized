@@ -1,0 +1,118 @@
+QBCore = exports['qb-core']:GetCoreObject()
+
+-- ============================================
+-- SERVER CHỈ LƯU DATA VÀ XỬ LÝ TIỀN
+-- Tất cả logic tính toán đã chuyển sang CLIENT
+-- ============================================
+
+local PlayerData = {}
+
+-- Khởi tạo data cho player
+local function InitPlayerData(playerId)
+    if not PlayerData[playerId] then
+        PlayerData[playerId] = {
+            dailyWorkHours = 0,
+            weeklyWorkHours = 0,
+            lastDayReset = os.date("%Y-%m-%d"),
+            lastWeekReset = os.date("%Y-W%W")
+        }
+    end
+end
+
+-- Event: Bắt đầu ca (CHỈ LƯU TRẠNG THÁI)
+RegisterNetEvent('windturbine:startDuty')
+AddEventHandler('windturbine:startDuty', function()
+    local playerId = source
+    InitPlayerData(playerId)
+    
+    print(('[Wind Turbine] Player %s started duty'):format(playerId))
+end)
+
+-- Event: Kết thúc ca (LƯU EARNINGS VÀ WORK HOURS)
+RegisterNetEvent('windturbine:stopDuty')
+AddEventHandler('windturbine:stopDuty', function(data)
+    local playerId = source
+    
+    if not PlayerData[playerId] then
+        InitPlayerData(playerId)
+    end
+    
+    -- Lưu thời gian làm việc từ client
+    if data and data.dailyHours then
+        PlayerData[playerId].dailyWorkHours = data.dailyHours
+    end
+    if data and data.weeklyHours then
+        PlayerData[playerId].weeklyWorkHours = data.weeklyHours
+    end
+    
+    print(('[Wind Turbine] Player %s stopped duty (Daily: %.1fh, Weekly: %.1fh)'):format(
+        playerId, 
+        PlayerData[playerId].dailyWorkHours,
+        PlayerData[playerId].weeklyWorkHours))
+end)
+
+-- Event: Rút tiền (CHỈ XỬ LÝ TIỀN - QUAN TRỌNG NHẤT)
+RegisterNetEvent('windturbine:withdrawEarnings')
+AddEventHandler('windturbine:withdrawEarnings', function(amount)
+    local playerId = source
+    
+    if not amount or amount <= 0 then
+        TriggerClientEvent('QBCore:Notify', playerId, '❌ Không có tiền để rút!', 'error')
+        return
+    end
+    
+    -- Validate amount (chống hack)
+    if amount > 100000 then -- Max 100k IC mỗi lần rút
+        print(('[Wind Turbine] SUSPICIOUS: Player %s tried to withdraw $%d'):format(playerId, amount))
+        TriggerClientEvent('QBCore:Notify', playerId, '❌ Số tiền không hợp lệ!', 'error')
+        return
+    end
+    
+    -- QBCore: Thêm tiền vào ví
+    local Player = QBCore.Functions.GetPlayer(playerId)
+    if Player then
+        Player.Functions.AddMoney('cash', amount)
+        
+        -- Thông báo client thành công
+        TriggerClientEvent('windturbine:withdrawSuccess', playerId, amount)
+        
+        print(('[Wind Turbine] Player %s withdrew $%d'):format(playerId, amount))
+    else
+        TriggerClientEvent('QBCore:Notify', playerId, '❌ Lỗi hệ thống!', 'error')
+    end
+end)
+
+-- Cleanup khi player disconnect
+AddEventHandler('playerDropped', function()
+    local playerId = source
+    if PlayerData[playerId] then
+        print(('[Wind Turbine] Player %s disconnected'):format(playerId))
+        PlayerData[playerId] = nil
+    end
+end)
+
+-- Reset daily/weekly counters (chạy mỗi giờ để check)
+CreateThread(function()
+    while true do
+        Wait(3600000) -- 1 giờ
+        
+        local currentDay = os.date("%Y-%m-%d")
+        local currentWeek = os.date("%Y-W%W")
+        
+        for playerId, data in pairs(PlayerData) do
+            -- Reset daily
+            if data.lastDayReset ~= currentDay then
+                data.dailyWorkHours = 0
+                data.lastDayReset = currentDay
+                print(('[Wind Turbine] Reset daily hours for player %s'):format(playerId))
+            end
+            
+            -- Reset weekly
+            if data.lastWeekReset ~= currentWeek then
+                data.weeklyWorkHours = 0
+                data.lastWeekReset = currentWeek
+                print(('[Wind Turbine] Reset weekly hours for player %s'):format(playerId))
+            end
+        end
+    end
+end)

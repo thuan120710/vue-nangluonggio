@@ -139,12 +139,12 @@ local function CalculateSystemProfit()
     for systemName, value in pairs(systems) do
         local systemProfit = Config.BaseSalary * (Config.SystemProfitContribution / 100)
         
+        -- Tính theo % thực tế của hệ thống
         if value < 30 then
-            systemProfit = 0
-        elseif value < 50 then
-            systemProfit = systemProfit * 0.5
+            systemProfit = 0 -- Dưới 30% không sinh tiền
         else
-            systemProfit = systemProfit
+            -- Từ 30% trở lên: tính theo tỷ lệ thực tế
+            systemProfit = systemProfit * (value / 100)
         end
         
         totalProfit = totalProfit + systemProfit
@@ -347,6 +347,12 @@ local function OpenMainUI()
         return
     end
     
+    -- Tính thời gian làm việc hiện tại
+    local currentWorkHours = 0
+    if playerData.onDuty and playerData.workStartTime > 0 then
+        currentWorkHours = (GetCurrentTime() - playerData.workStartTime) / 1000 / 3600
+    end
+    
     -- Là chủ -> Mở UI làm việc bình thường
     SetNuiFocus(true, true)
     SendNUIMessage({
@@ -355,8 +361,10 @@ local function OpenMainUI()
         efficiency = currentEfficiency,
         earnings = currentEarnings,
         onDuty = isOnDuty,
-        ownerName = rentalStatus.ownerName,
-        expiryTime = rentalStatus.expiryTime
+        ownerName = rentalStatus.ownerName or 'N/A',
+        expiryTime = rentalStatus.expiryTime,
+        workHours = currentWorkHours,
+        maxHours = Config.MaxDailyHours
     })
 end
 
@@ -662,10 +670,29 @@ AddEventHandler('windturbine:withdrawSuccess', function(amount)
     QBCore.Functions.Notify(string.format('💰 Đã rút $%d từ quỹ tiền lương!', amount), 'success')
 end)
 
+-- Thread: Cập nhật thời gian làm việc liên tục (mỗi giây)
+CreateThread(function()
+    while true do
+        Wait(1000) -- Cập nhật mỗi giây
+        
+        if playerData.onDuty then
+            local currentTime = GetCurrentTime()
+            local currentWorkHours = (currentTime - playerData.workStartTime) / 1000 / 3600
+            
+            -- Cập nhật UI với thời gian hiện tại
+            SendNUIMessage({
+                action = 'updateWorkTime',
+                workHours = currentWorkHours,
+                maxHours = Config.MaxDailyHours
+            })
+        end
+    end
+end)
+
 -- Thread: Sinh tiền và penalty (Chuyển từ server)
 CreateThread(function()
     while true do
-        Wait(60000) -- Check mỗi phút
+        Wait(5000) -- Check mỗi 5 giây để chính xác hơn
         
         if playerData.onDuty then
             local currentTime = GetCurrentTime()
@@ -732,12 +759,13 @@ CreateThread(function()
                 goto continue
             end
             
-            -- Sinh tiền mỗi chu kỳ (15 phút hoặc 30 giây trong test mode)
+            -- Sinh tiền mỗi chu kỳ
             if currentTime - playerData.lastEarning >= Config.EarningCycle then
                 local canEarn, status = CanEarnMoney()
                 
                 if canEarn then
                     local earnings = CalculateEarnings()
+                    
                     if earnings > 0 then
                         playerData.earningsPool = playerData.earningsPool + earnings
                         playerData.lastEarning = currentTime
@@ -786,15 +814,7 @@ CreateThread(function()
             
             -- Áp dụng penalty mỗi giờ (CHỈ CÓ PENALTY, KHÔNG CÓ DEGRADE TỰ NHIÊN)
             if currentTime - playerData.lastPenalty >= Config.PenaltyCycle then
-                -- Cập nhật work time mỗi giờ (LUÔN LUÔN, bất kể có penalty hay không)
-                local currentWorkHours = (currentTime - playerData.workStartTime) / 1000 / 3600
-                SendNUIMessage({
-                    action = 'updateWorkTime',
-                    workHours = currentWorkHours,
-                    maxHours = Config.MaxDailyHours
-                })
-                
-                -- Sau đó mới check penalty
+                -- Áp dụng penalty
                 ApplyPenalty()
                 playerData.lastPenalty = currentTime
             end
@@ -833,17 +853,37 @@ CreateThread(function()
     end
 end)
 
--- Thread: Hiển thị marker và text
+local turbineObject = nil
+
+-- Hàm khởi tạo Object (Chỉ chạy 1 lần hoặc khi cần thiết)
+CreateThread(function()
+    local modelHash = GetHashKey("f17_bangdieukhiendiengio")
+    
+    -- Load model vào bộ nhớ
+    RequestModel(modelHash)
+    while not HasModelLoaded(modelHash) do
+        Wait(1)
+    end
+
+    -- Tạo Object tại vị trí Config (Đặt z - 1.0 hoặc tùy chỉnh để nó chạm đất)
+    turbineObject = CreateObject(modelHash, Config.TurbineLocation.x, Config.TurbineLocation.y, Config.TurbineLocation.z - 1.0, false, false, false)
+    SetEntityHeading(turbineObject, Config.TurbineLocation.w or 0.0) -- Thêm Heading trong Config nếu muốn xoay bảng
+    FreezeEntityPosition(turbineObject, true) -- Giữ bảng cố định, không bị tông đổ
+    SetEntityInvincible(turbineObject, true) -- Không bị phá hủy
+end)
+
+-- Vòng lặp xử lý logic
 CreateThread(function()
     while true do
-        Wait(0)
-        
-        if isNearTurbine then
-            DrawMarker(1, Config.TurbineLocation.x, Config.TurbineLocation.y, Config.TurbineLocation.z - 1.0,
-                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 2.0, 2.0, 1.0, 0, 255, 0, 100, false, true, 2, false, nil, nil, false)
+        local sleep = 1000 -- Tối ưu hiệu năng khi ở xa
+        local playerPed = PlayerPedId()
+        local playerCoords = GetEntityCoords(playerPed)
+        local dist = #(playerCoords - vector3(Config.TurbineLocation.x, Config.TurbineLocation.y, Config.TurbineLocation.z))
+
+        if dist < 3.0 then -- Chỉ xử lý khi ở gần bảng điều khiển trong bán kính 3m
+            sleep = 0 
             
             local displayText = ""
-            
             if not rentalStatus.isRented then
                 displayText = "[~g~E~w~] Thuê trạm điện gió"
             elseif rentalStatus.isOwner then
@@ -855,14 +895,15 @@ CreateThread(function()
             else
                 displayText = "~r~Trạm đã có chủ sở hữu"
             end
-            
-            DrawText3D(Config.TurbineLocation.x, Config.TurbineLocation.y, Config.TurbineLocation.z, displayText)
-            
-            if IsControlJustReleased(0, 38) then -- E
+
+            -- Vẽ chữ 3D ngay trên mặt bảng điều khiển
+            DrawText3D(Config.TurbineLocation.x, Config.TurbineLocation.y, Config.TurbineLocation.z + 0.5, displayText)
+
+            -- Kiểm tra bấm phím E
+            if IsControlJustReleased(0, 38) then 
                 if rentalStatus.isRented and not rentalStatus.isOwner then
-                    -- Chống spam notify: chỉ hiển thị 1 lần mỗi 3 giây
                     local currentTime = GetGameTimer()
-                    if currentTime - lastNotifyTime > 5000 then
+                    if currentTime - (lastNotifyTime or 0) > 5000 then
                         QBCore.Functions.Notify('❌ Trạm này đã có người thuê!', 'error', 5000)
                         lastNotifyTime = currentTime
                     end
@@ -871,6 +912,7 @@ CreateThread(function()
                 end
             end
         end
+        Wait(sleep)
     end
 end)
 

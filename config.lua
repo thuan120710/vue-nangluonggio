@@ -14,21 +14,21 @@ Config.RentalPrice = 0 -- MIỄN PHÍ để test
 Config.RentalDuration = 604800 -- 7 ngày (giây) - 604800 seconds = 7 days
 
 -- Vị trí trạm điện gió
-Config.TurbineLocation = vector4(2319.23, 1608.74, 57.94, 357.2)
+Config.TurbineLocation = vector4(2318.64, 1608.59, 57.94, 92.39)
 
 -- ============================================
 -- HỆ THỐNG LỢI NHUẬN
 -- ============================================
 if Config.TestMode then
-    -- TEST MODE: Sinh tiền nhanh hơn
-    Config.BaseSalary = 1250 -- IC/chu kỳ
-    Config.EarningCycle = 30000 -- 30 giây (thay vì 15 phút)
-    Config.MaxDailyHours = 12/60 -- 12 phút = 0.2 giờ (thay vì 12 giờ)
-    Config.MaxWeeklyHours = 84/60 -- 84 phút = 1.4 giờ (thay vì 84 giờ)
+    -- TEST MODE: 1 phút = 1 giờ (để test nhanh)
+    Config.BaseSalary = 5000 -- IC/chu kỳ (1 phút = 1 giờ) → 5,000 IC/giờ khi 100% hiệu suất
+    Config.EarningCycle = 60000 -- 60 giây = 1 phút (tương đương 1 giờ thực tế)
+    Config.MaxDailyHours = 12/60 -- 12 phút = 0.2 giờ (tương đương 12 giờ thực tế)
+    Config.MaxWeeklyHours = 84/60 -- 84 phút = 1.4 giờ (tương đương 84 giờ thực tế)
 else
     -- PRODUCTION: Thời gian thực
-    Config.BaseSalary = 1250 -- IC/15 phút (5,000 IC/giờ)
-    Config.EarningCycle = 900000 -- 900 giây (15 phút)
+    Config.BaseSalary = 5000 -- IC/giờ (5,000 IC/giờ)
+    Config.EarningCycle = 3600000 -- 3600 giây = 1 giờ
     Config.MaxDailyHours = 12 -- 12 giờ/ngày
     Config.MaxWeeklyHours = 84 -- 84 giờ/tuần
 end

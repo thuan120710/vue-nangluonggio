@@ -201,9 +201,24 @@ export default {
 
 
 <style scoped>
+/* Header override for Rental UI */
+.header {
+    margin-top: 1rem;
+    padding-left: 2.5rem;
+    padding-right: 2.5rem;
+}
+
+.header-logo {
+    left: 3.5rem;
+}
+
+.close-btn {
+    right: 3.5rem;
+}
+
 /* Rental UI Styles */
 .rental-content-wrapper {
-    padding: 7.125rem 3.75rem;
+    padding: 6.125rem 5.25rem;
     display: flex;
     gap: 3.125rem;
     align-items: flex-start;
@@ -211,33 +226,47 @@ export default {
     height: calc(100% - 150px);
 }
 
-.rental-left-panel,
-.rental-right-panel {
-    flex: 0 0 22.5rem;
+.rental-left-panel {
+    flex: 0 0 23rem;
     display: flex;
     flex-direction: column;
-    gap: 1.25rem;
+}
+
+.rental-right-panel {
+    flex: 0 0 23rem;
+    display: flex;
+    flex-direction: column;
+    margin: 0 3px;
 }
 
 .panel-title {
-    font-size: 1.525rem;
-    font-weight: 700;
     letter-spacing: 0.1875rem;
     background: linear-gradient(180deg, #80F0FF 0%, #00C4DD 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     text-shadow: 0 0 0.9375rem rgba(0, 255, 255, 0.8);
     text-align: center;
-    margin-bottom: 0.625rem;
-    font-family: 'Baloo 2', cursive;
+    margin-bottom: 1.25rem;
+    font-family: Goldman;
+    font-size: 1.25rem;
+    font-style: normal;
+    font-weight: 700;
+    line-height: normal;
 }
 
 .rental-info-box {
     background: rgba(0, 255, 255, 0.05);
     border: 0.125rem solid rgba(0, 255, 255, 0.3);
     border-radius: 0.9375rem;
-    padding: 1.589rem;
+    padding: 1.8rem;
     background: #5D5D5F4D;
+    line-height: normal;
+    color: #FFF;
+    font-family: "Baloo 2";
+    font-size: 0.875rem;
+    font-style: normal;
+    font-weight: 400;
+    line-height: normal;
 
 }
 
@@ -271,7 +300,7 @@ export default {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 8.5rem;
+    gap: 7.5rem;
     margin-top: 4.125rem;
 }
 
@@ -456,14 +485,16 @@ export default {
     border-radius: 0.9375rem;
     color: #00ff51;
     padding: 1.25rem 3.125rem;
-    font-size: 1.25rem;
-    font-weight: 900;
     letter-spacing: 0.125rem;
     cursor: pointer;
     transition: all 0.3s;
     text-transform: uppercase;
-    box-shadow: 0 0 1.25rem rgba(0, 255, 81, 0.4);
-    font-family: 'Goldman', sans-serif;
+    color: #00FF51;
+    font-family: Goldman;
+    font-size: 1.25rem;
+    font-style: normal;
+    font-weight: 700;
+    line-height: normal;
 }
 
 .btn-rent:hover {
@@ -497,7 +528,7 @@ export default {
     background: rgba(0, 255, 255, 0.05);
     border: 0.125rem solid rgba(0, 255, 255, 0.3);
     border-radius: 0.9375rem;
-    padding: 0.9rem 1.25rem;
+    padding: 1.1rem 1.25rem;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -505,9 +536,9 @@ export default {
     gap: 0.625rem;
     transition: all 0.3s;
     text-align: center;
-    min-height: 10rem;
+    min-height: 11rem;
     background: #5D5D5F4D;
-
+    margin-bottom: 1rem;
 }
 
 .info-card-rental:hover {
@@ -517,7 +548,7 @@ export default {
 }
 
 .info-icon-rental {
-    font-size: 2.5rem;
+    font-size: 1.25rem;
     margin-bottom: 0.625rem;
     display: flex;
     align-items: center;
@@ -532,22 +563,27 @@ export default {
 }
 
 .info-label-rental {
-    font-size: 1.5rem;
     color: rgba(255, 255, 255, 0.8);
     letter-spacing: 0.0625rem;
-    font-weight: 400;
     margin-bottom: 0.3125rem;
-    font-family: 'Baloo 2', cursive;
+    color: #FFF;
+    font-family: Goldman;
+    font-size: 1.25rem;
+    font-style: normal;
+    font-weight: 400;
+    line-height: normal;
 }
 
 .info-value-rental {
-    font-size: 1.5rem;
-    font-weight: 900;
-    color: #00ff51;
-    text-shadow: 0 0 0.9375rem rgba(0, 255, 136, 0.8);
+    font-size: 1.25rem;
     letter-spacing: 0.0625rem;
     line-height: 1.4;
-    font-family: 'Baloo 2', cursive;
+    color: #00FF51;
+    font-family: Goldman;
+    font-size: 1.25rem;
+    font-style: normal;
+    font-weight: 700;
+    line-height: normal;
 }
 
 .owner-info {
