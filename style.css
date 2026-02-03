@@ -26,11 +26,11 @@ img {
 /* Container */
 .dashboard-container {
   width: 100%;
-  max-width: 1146px;
-  padding: 20px;
+  max-width: 71.625rem;
+  padding: 1.25rem;
   display: flex;
   flex-direction: column;
-  gap: 0; /* Header and content are stacked */
+  gap: 0;
 }
 
 /* Gradients & Utilities */
@@ -62,13 +62,13 @@ img {
   position: relative;
   display: flex;
   align-items: center;
-  height: 64px;
+  height: 4rem;
   width: 100%;
   margin-bottom: 0;
 }
 
 .header-logo img {
-  width: 60px;
+  width: 3.75rem;
   height: auto;
 }
 
@@ -77,28 +77,28 @@ img {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin: 0 20px;
-  padding: 0 48px; /* Spacing for the centered title */
+  margin: 0 1.25rem;
+  padding: 0 3rem;
 }
 
 .info-group {
   display: flex;
-  gap: 10px;
-  font-size: 14px;
+  gap: 0.625rem;
+  font-size: 0.875rem;
   white-space: nowrap;
 }
 
 .header-exit .btn-exit {
   background: none;
-  border: 1px solid #ed2449;
-  border-radius: 5px;
-  padding: 10px;
+  border: 0.0625rem solid #ed2449;
+  border-radius: 0.3125rem;
+  padding: 0.625rem;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  width: 2.75rem;
+  height: 2.75rem;
 }
 
 .header-title {
@@ -107,9 +107,9 @@ img {
   top: 50%;
   transform: translate(-50%, -50%);
   margin: 0;
-  font-size: 24px;
+  font-size: 1.5rem;
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 0.0625rem;
   white-space: nowrap;
 }
 
@@ -117,7 +117,7 @@ img {
 .dashboard-content {
   display: flex;
   flex-direction: row;
-  height: 623px;
+  height: 38.9375rem;
   align-items: center;
 }
 
@@ -133,12 +133,12 @@ img {
 
 /* Left Column */
 .col-left {
-  gap: 32px;
+  gap: 2rem;
 }
 
 .turbine-container {
-  width: 389px;
-  height: 389px;
+  width: 24.3125rem;
+  height: 24.3125rem;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -155,33 +155,33 @@ img {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 1rem;
 }
 
 .status-title {
-  font-size: 16px;
+  font-size: 1rem;
   margin: 0;
-  letter-spacing: 1px;
+  letter-spacing: 0.0625rem;
 }
 
 .status-indicator {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0.5rem;
   background: rgba(255, 255, 255, 0.05);
-  padding: 4px 12px;
-  border-radius: 4px;
+  padding: 0.25rem 0.75rem;
+  border-radius: 0.25rem;
 }
 
 .status-text {
   color: rgba(255, 255, 255, 0.5);
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 700;
 }
 
 /* Right Column */
 .col-right {
-  gap: 32px;
+  gap: 2rem;
 }
 
 .income-panel {
@@ -190,8 +190,8 @@ img {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 313px;
-  height: 313px;
+  width: 19.5625rem;
+  height: 19.5625rem;
   text-align: center;
 }
 
@@ -211,23 +211,23 @@ img {
 }
 
 .income-title {
-  font-size: 20px;
-  margin: 0 0 16px 0;
+  font-size: 1.25rem;
+  margin: 0 0 1rem 0;
   text-transform: uppercase;
 }
 
 .income-value {
-  font-size: 48px;
+  font-size: 3rem;
   font-weight: 700;
   color: #00ff51;
-  text-shadow: 0px 0px 10px #4cba6f;
+  text-shadow: 0 0 0.625rem #4cba6f;
 }
 
 .action-panel {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 1rem;
   width: 100%;
 }
 
@@ -235,8 +235,8 @@ img {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 5px;
-  font-size: 14px;
+  gap: 0.3125rem;
+  font-size: 0.875rem;
   font-weight: 700;
 }
 
@@ -252,16 +252,16 @@ img {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  width: 340px;
-  height: 60px;
+  gap: 0.625rem;
+  width: 21.25rem;
+  height: 3.75rem;
   background: linear-gradient(
     180deg,
     rgba(254, 205, 8, 0.3) 0%,
     rgba(254, 205, 8, 0) 100%
   );
-  border: 1px solid #fecd08;
-  border-radius: 10px;
+  border: 0.0625rem solid #fecd08;
+  border-radius: 0.625rem;
   cursor: pointer;
   transition: all 0.3s ease;
 }
@@ -276,7 +276,7 @@ img {
 
 .btn-withdraw span {
   color: #fecd08;
-  font-size: 20px;
+  font-size: 1.25rem;
   font-weight: 700;
   text-transform: uppercase;
 }
@@ -286,17 +286,17 @@ img {
   .dashboard-content {
     flex-direction: column;
     height: auto;
-    padding: 40px 0;
+    padding: 2.5rem 0;
   }
 
   .header-info-bar {
-    display: none; /* Hide detailed info on small screens or stack it */
+    display: none;
   }
 
   .header-title {
     position: static;
     transform: none;
-    font-size: 18px;
+    font-size: 1.125rem;
     text-align: center;
     flex: 1;
   }
