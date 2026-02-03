@@ -39,6 +39,7 @@ local function BroadcastRentalStatus(turbineId)
             withdrawDeadline = nil,
             isGracePeriod = false
         }
+        print('[DEBUG] Broadcast rental status: isRented=true, owner=' .. rentalData.ownerName)
     elseif graceData then
         -- Đang trong grace period (4 giờ để rút tiền)
         GlobalState['turbine_' .. turbineId] = {
@@ -49,6 +50,7 @@ local function BroadcastRentalStatus(turbineId)
             withdrawDeadline = graceData.withdrawDeadline,
             isGracePeriod = true
         }
+        print('[DEBUG] Broadcast grace period: withdrawDeadline=' .. graceData.withdrawDeadline .. ', owner=' .. graceData.ownerName)
     else
         GlobalState['turbine_' .. turbineId] = {
             isRented = false,
@@ -58,6 +60,7 @@ local function BroadcastRentalStatus(turbineId)
             withdrawDeadline = nil,
             isGracePeriod = false
         }
+        print('[DEBUG] Broadcast reset: turbine available')
     end
 end
 
@@ -92,7 +95,7 @@ local function CheckRentalExpiry(turbineId)
     
     local rentalData = TurbineRentals[turbineId]
     
-    -- Nếu hết 7 ngày, chuyển sang grace period (4 giờ)
+    -- Nếu hết thời hạn thuê, chuyển sang grace period
     if currentTime >= rentalData.expiryTime then
         -- Chuyển sang grace period
         TurbineExpiryGracePeriod[turbineId] = {
@@ -100,7 +103,7 @@ local function CheckRentalExpiry(turbineId)
             ownerName = rentalData.ownerName,
             playerId = rentalData.playerId,
             expiryTime = rentalData.expiryTime,
-            withdrawDeadline = currentTime + (4 * 60 * 60) -- 4 giờ
+            withdrawDeadline = currentTime + Config.GracePeriod
         }
         
         -- Xóa rental data
@@ -111,14 +114,15 @@ local function CheckRentalExpiry(turbineId)
         
         -- Thông báo cho owner nếu đang online
         if rentalData.playerId then
+            local gracePeriodText = Config.TestMode and "30 giây" or "4 giờ"
             TriggerClientEvent('QBCore:Notify', rentalData.playerId, 
-                '⚠️ Hết thời hạn thuê! Bạn có 4 giờ để rút tiền.', 
+                string.format('⚠️ Hết thời hạn thuê! Bạn có %s để rút tiền.', gracePeriodText), 
                 'warning', 8000)
             
             -- Gửi phone notification
             local phoneNumber = exports["lb-phone"]:GetEquippedPhoneNumber(rentalData.playerId)
             if phoneNumber then
-                local expiryMsg = "⚠️ Hết thời hạn thuê Trạm Điện Gió\n\n⏰ Bạn có 4 giờ để rút tiền!\n\n💰 Hãy vào trạm và rút tiền ngay.\n\n⚠️ Sau 4 giờ, trạm sẽ được reset và bạn sẽ mất toàn bộ tiền chưa rút!"
+                local expiryMsg = string.format("⚠️ Hết thời hạn thuê Trạm Điện Gió\n\n⏰ Bạn có %s để rút tiền!\n\n💰 Hãy vào trạm và rút tiền ngay.\n\n⚠️ Sau %s, trạm sẽ được reset và bạn sẽ mất toàn bộ tiền chưa rút!", gracePeriodText, gracePeriodText)
                 exports['lb-phone']:SendMessage('Trạm Điện Gió', tostring(phoneNumber), expiryMsg, nil, nil, nil)
             end
         end
@@ -281,21 +285,22 @@ AddEventHandler('windturbine:rentTurbine', function(turbineId, rentalPrice)
         ownerName = ownerName,
         playerId = playerId,
         rentalTime = currentTime,
-        expiryTime = currentTime + (7 * 24 * 60 * 60)
+        expiryTime = currentTime + Config.RentalDuration
     }
     
     -- Broadcast qua StateBag - TẤT CẢ 500 CLIENT TỰ ĐỘNG NHẬN (KHÔNG CẦN CHECK!)
     BroadcastRentalStatus(turbineId)
     
     -- Thông báo thành công
+    local durationText = Config.TestMode and "60 giây" or "7 ngày"
     if rentalPrice > 0 then
         TriggerClientEvent('QBCore:Notify', playerId, 
-            string.format('✅ Đã thuê trạm điện gió! Giá: $%s IC | Thời hạn: 7 ngày', 
-                string.format("%d", rentalPrice)), 
+            string.format('✅ Đã thuê trạm điện gió! Giá: $%s IC | Thời hạn: %s', 
+                string.format("%d", rentalPrice), durationText), 
             'success', 5000)
     else
         TriggerClientEvent('QBCore:Notify', playerId, 
-            '✅ Đã thuê trạm điện gió MIỄN PHÍ! Thời hạn: 7 ngày', 
+            string.format('✅ Đã thuê trạm điện gió MIỄN PHÍ! Thời hạn: %s', durationText), 
             'success', 5000)
     end
     
@@ -308,14 +313,33 @@ AddEventHandler('windturbine:rentTurbine', function(turbineId, rentalPrice)
     -- Gửi tin nhắn xác nhận qua lb-phone
     local phoneNumber = exports["lb-phone"]:GetEquippedPhoneNumber(playerId)
     if phoneNumber then
+        local durationText = Config.TestMode and "60 giây" or "7 ngày"
+        local gracePeriodText = Config.TestMode and "30 giây" or "4 giờ"
         local rentalMsg = ""
         if rentalPrice > 0 then
-            rentalMsg = string.format("🌬️ Xác nhận thuê Trạm Điện Gió\n\n💰 Giá thuê: $%s IC\n⏰ Thời hạn: 7 ngày\n\n✅ Bạn có thể bắt đầu làm việc ngay bây giờ!\n\n⚠️ Lưu ý: Sau khi hết hạn, bạn cần thuê lại để tiếp tục sử dụng.", 
-                string.format("%d", rentalPrice))
+            rentalMsg = string.format("🌬️ Xác nhận thuê Trạm Điện Gió\n\n💰 Giá thuê: $%s IC\n⏰ Thời hạn: %s\n\n✅ Bạn có thể bắt đầu làm việc ngay bây giờ!\n\n⚠️ Lưu ý: Sau khi hết hạn, bạn có %s để rút tiền.", 
+                string.format("%d", rentalPrice), durationText, gracePeriodText)
         else
-            rentalMsg = "🌬️ Xác nhận thuê Trạm Điện Gió\n\n💰 Giá thuê: MIỄN PHÍ\n⏰ Thời hạn: 7 ngày\n\n✅ Bạn có thể bắt đầu làm việc ngay bây giờ!\n\n⚠️ Lưu ý: Sau khi hết hạn, bạn cần thuê lại để tiếp tục sử dụng."
+            rentalMsg = string.format("🌬️ Xác nhận thuê Trạm Điện Gió\n\n💰 Giá thuê: MIỄN PHÍ\n⏰ Thời hạn: %s\n\n✅ Bạn có thể bắt đầu làm việc ngay bây giờ!\n\n⚠️ Lưu ý: Sau khi hết hạn, bạn có %s để rút tiền.", durationText, gracePeriodText)
         end
         exports['lb-phone']:SendMessage('Trạm Điện Gió', tostring(phoneNumber), rentalMsg, nil, nil, nil)
+    end
+end)
+
+-- Thread: Tự động kiểm tra expiry mỗi 5 giây
+CreateThread(function()
+    while true do
+        Wait(5000) -- Check mỗi 5 giây
+        
+        -- Kiểm tra tất cả các trạm
+        for turbineId, _ in pairs(TurbineRentals) do
+            CheckRentalExpiry(turbineId)
+        end
+        
+        -- Kiểm tra grace period
+        for turbineId, _ in pairs(TurbineExpiryGracePeriod) do
+            CheckRentalExpiry(turbineId)
+        end
     end
 end)
 

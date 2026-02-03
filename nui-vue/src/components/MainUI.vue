@@ -201,7 +201,7 @@
 </template>
 
 <script>
-import { computed } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import SystemCard from './SystemCard.vue'
 import { playSound } from '../utils/sound'
 
@@ -254,6 +254,19 @@ export default {
   },
   emits: ['close', 'startDuty', 'stopDuty', 'repair', 'openEarnings'],
   setup(props, { emit }) {
+    const currentTime = ref(Math.floor(Date.now() / 1000))
+    
+    // Cập nhật thời gian mỗi giây
+    onMounted(() => {
+      const interval = setInterval(() => {
+        currentTime.value = Math.floor(Date.now() / 1000)
+      }, 1000)
+      
+      onUnmounted(() => {
+        clearInterval(interval)
+      })
+    })
+    
     // Đảm bảo systems luôn có đầy đủ 5 hệ thống
     const systemsList = computed(() => {
       const defaultSystems = {
@@ -300,8 +313,7 @@ export default {
     const remainingTime = computed(() => {
       if (!props.expiryTime) return 'N/A'
       
-      const currentTime = Math.floor(Date.now() / 1000) // Current time in seconds
-      const remainingSeconds = props.expiryTime - currentTime
+      const remainingSeconds = props.expiryTime - currentTime.value
       
       if (remainingSeconds <= 0) return 'Hết hạn'
       
@@ -375,10 +387,10 @@ export default {
 <style scoped>
 /* Header override for Main UI */
 .header-logo {
-    left: 3.5rem;
+    left: 4rem;
 }
 
 .close-btn {
-    right: 3.5rem;
+    right: 4rem;
 }
 </style>

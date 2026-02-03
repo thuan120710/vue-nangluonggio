@@ -11,7 +11,16 @@ Config.TestMode = true -- Đổi thành false khi production
 -- HỆ THỐNG THUÊ TRẠM ĐIỆN GIÓ
 -- ============================================
 Config.RentalPrice = 0 -- MIỄN PHÍ để test
-Config.RentalDuration = 604800 -- 7 ngày (giây) - 604800 seconds = 7 days
+
+if Config.TestMode then
+    -- TEST MODE: Expiry nhanh để test
+    Config.RentalDuration = 60 -- 60 giây = 1 phút (thay vì 7 ngày)
+    Config.GracePeriod = 30 -- 30 giây (thay vì 4 giờ)
+else
+    -- PRODUCTION: Thời gian thực
+    Config.RentalDuration = 604800 -- 7 ngày (giây) - 604800 seconds = 7 days
+    Config.GracePeriod = 14400 -- 4 giờ (giây) - 14400 seconds = 4 hours
+end
 
 -- Vị trí trạm điện gió
 Config.TurbineLocation = vector4(2318.64, 1608.59, 57.94, 92.39)

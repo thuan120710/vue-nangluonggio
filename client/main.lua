@@ -68,6 +68,116 @@ local playerData = {
     lastWeekReset = ""
 }
 
+-- ============================================
+-- UI FUNCTIONS (Định nghĩa trước để StateBag handler có thể dùng)
+-- ============================================
+
+-- Đóng UI
+local function CloseUI()
+    SetNuiFocus(false, false)
+    SendNUIMessage({
+        action = 'hideUI'
+    })
+end
+
+-- Mở UI thuê trạm (Định nghĩa TRƯỚC OpenMainUI)
+local function OpenRentalUI()
+    SetNuiFocus(true, true)
+    SendNUIMessage({
+        action = 'showRentalUI',
+        isRented = rentalStatus.isRented,
+        isOwner = rentalStatus.isOwner,
+        ownerName = rentalStatus.ownerName,
+        expiryTime = rentalStatus.expiryTime,
+        rentalPrice = rentalStatus.rentalPrice
+    })
+end
+
+-- Mở UI rút tiền khi hết hạn (grace period)
+local function OpenExpiryWithdrawUI()
+    SetNuiFocus(true, true)
+    SendNUIMessage({
+        action = 'showExpiryWithdrawUI',
+        earnings = currentEarnings,
+        ownerName = rentalStatus.ownerName,
+        expiryTime = rentalStatus.expiryTime,
+        withdrawDeadline = rentalStatus.withdrawDeadline
+    })
+end
+
+-- Mở UI chính
+local function OpenMainUI()
+    -- Kiểm tra grace period trước
+    if rentalStatus.isGracePeriod and rentalStatus.isOwner then
+        -- Đang trong grace period (4 giờ để rút tiền)
+        OpenExpiryWithdrawUI()
+        return
+    end
+    
+    -- Kiểm tra trạng thái thuê trước khi mở UI
+    if not rentalStatus.isRented then
+        -- Chưa thuê -> Hiển thị UI thuê trạm
+        OpenRentalUI()
+        return
+    end
+    
+    if not rentalStatus.isOwner then
+        -- Đã thuê nhưng không phải chủ
+        QBCore.Functions.Notify('❌ Trạm này đã có người thuê!', 'error', 5000)
+        return
+    end
+    
+    -- Tính thời gian làm việc hiện tại
+    local currentWorkHours = 0
+    if playerData.onDuty and playerData.workStartTime > 0 then
+        currentWorkHours = (GetCurrentTime() - playerData.workStartTime) / 1000 / 3600
+    end
+    
+    -- Là chủ -> Mở UI làm việc bình thường
+    SetNuiFocus(true, true)
+    SendNUIMessage({
+        action = 'showMainUI',
+        systems = currentSystems,
+        efficiency = currentEfficiency,
+        earnings = currentEarnings,
+        onDuty = isOnDuty,
+        ownerName = rentalStatus.ownerName or 'N/A',
+        expiryTime = rentalStatus.expiryTime,
+        workHours = currentWorkHours,
+        maxHours = Config.MaxDailyHours
+    })
+end
+
+-- Mở minigame
+local function OpenMinigame(system)
+    local settings = Config.MinigameSettings[system]
+    if not settings then return end
+    
+    SetNuiFocus(true, true)
+    SendNUIMessage({
+        action = 'showMinigame',
+        system = system,
+        title = settings.title,
+        speed = settings.speed,
+        zoneSize = settings.zoneSize,
+        rounds = settings.rounds
+    })
+end
+
+-- Mở UI quỹ tiền
+local function OpenEarningsUI()
+    SetNuiFocus(true, true)
+    SendNUIMessage({
+        action = 'showEarningsUI',
+        earnings = currentEarnings,
+        efficiency = currentEfficiency
+    })
+end
+
+-- ============================================
+-- KHỞI TẠO VÀ STATEBAG HANDLER
+-- ============================================
+
 -- Khởi tạo ngày/tuần khi script load
 CreateThread(function()
     Wait(1000)
@@ -86,6 +196,11 @@ CreateThread(function()
     
     -- Lắng nghe StateBag - TỰ ĐỘNG CẬP NHẬT KHI CÓ THAY ĐỔI (KHÔNG CẦN CHECK!)
     AddStateBagChangeHandler('turbine_' .. turbineId, 'global', function(bagName, key, value)
+        print('[DEBUG CLIENT] StateBag changed:', json.encode(value))
+        
+        local wasGracePeriod = rentalStatus.isGracePeriod
+        local wasOwner = rentalStatus.isOwner
+        
         if value then
             local Player = QBCore.Functions.GetPlayerData()
             local isOwner = (value.isRented and Player.citizenid == value.citizenid) or 
@@ -97,6 +212,32 @@ CreateThread(function()
             rentalStatus.expiryTime = value.expiryTime
             rentalStatus.withdrawDeadline = value.withdrawDeadline
             rentalStatus.isGracePeriod = value.isGracePeriod or false
+            
+            print('[DEBUG CLIENT] Updated rentalStatus: isGracePeriod=' .. tostring(rentalStatus.isGracePeriod) .. ', isOwner=' .. tostring(rentalStatus.isOwner))
+            
+            -- Nếu chuyển sang grace period và đang là owner → Tự động đóng MainUI và mở ExpiryWithdrawUI
+            if not wasGracePeriod and rentalStatus.isGracePeriod and rentalStatus.isOwner then
+                print('[DEBUG CLIENT] Switching to ExpiryWithdrawUI...')
+                
+                -- Chạy trong thread riêng để tránh block StateBag handler
+                CreateThread(function()
+                    -- Đóng UI hiện tại
+                    CloseUI()
+                    
+                    -- Tắt duty nếu đang bật
+                    if playerData.onDuty then
+                        local workDuration = (GetCurrentTime() - playerData.workStartTime) / 1000 / 3600
+                        playerData.dailyWorkHours = playerData.dailyWorkHours + workDuration
+                        playerData.weeklyWorkHours = playerData.weeklyWorkHours + workDuration
+                        playerData.onDuty = false
+                        isOnDuty = false
+                    end
+                    
+                    -- Đợi 1 giây rồi mở ExpiryWithdrawUI
+                    Wait(1000)
+                    OpenExpiryWithdrawUI()
+                end)
+            end
         else
             -- Server reset hoặc trạm hết hạn → Reset client
             rentalStatus.isRented = false
@@ -105,6 +246,11 @@ CreateThread(function()
             rentalStatus.expiryTime = nil
             rentalStatus.withdrawDeadline = nil
             rentalStatus.isGracePeriod = false
+            
+            -- Đóng UI nếu đang mở
+            if wasOwner then
+                CloseUI()
+            end
         end
     end)
     
@@ -326,108 +472,6 @@ local function CheckTimeLimit()
     end
     
     return true, "OK"
-end
-
--- Mở UI thuê trạm (Định nghĩa TRƯỚC OpenMainUI)
-local function OpenRentalUI()
-    SetNuiFocus(true, true)
-    SendNUIMessage({
-        action = 'showRentalUI',
-        isRented = rentalStatus.isRented,
-        isOwner = rentalStatus.isOwner,
-        ownerName = rentalStatus.ownerName,
-        expiryTime = rentalStatus.expiryTime,
-        rentalPrice = rentalStatus.rentalPrice
-    })
-end
-
--- Mở UI rút tiền khi hết hạn (grace period)
-local function OpenExpiryWithdrawUI()
-    SetNuiFocus(true, true)
-    SendNUIMessage({
-        action = 'showExpiryWithdrawUI',
-        earnings = currentEarnings,
-        ownerName = rentalStatus.ownerName,
-        expiryTime = rentalStatus.expiryTime,
-        withdrawDeadline = rentalStatus.withdrawDeadline
-    })
-end
-
--- Mở UI chính
-local function OpenMainUI()
-    -- Kiểm tra grace period trước
-    if rentalStatus.isGracePeriod and rentalStatus.isOwner then
-        -- Đang trong grace period (4 giờ để rút tiền)
-        OpenExpiryWithdrawUI()
-        return
-    end
-    
-    -- Kiểm tra trạng thái thuê trước khi mở UI
-    if not rentalStatus.isRented then
-        -- Chưa thuê -> Hiển thị UI thuê trạm
-        OpenRentalUI()
-        return
-    end
-    
-    if not rentalStatus.isOwner then
-        -- Đã thuê nhưng không phải chủ
-        QBCore.Functions.Notify('❌ Trạm này đã có người thuê!', 'error', 5000)
-        return
-    end
-    
-    -- Tính thời gian làm việc hiện tại
-    local currentWorkHours = 0
-    if playerData.onDuty and playerData.workStartTime > 0 then
-        currentWorkHours = (GetCurrentTime() - playerData.workStartTime) / 1000 / 3600
-    end
-    
-    -- Là chủ -> Mở UI làm việc bình thường
-    SetNuiFocus(true, true)
-    SendNUIMessage({
-        action = 'showMainUI',
-        systems = currentSystems,
-        efficiency = currentEfficiency,
-        earnings = currentEarnings,
-        onDuty = isOnDuty,
-        ownerName = rentalStatus.ownerName or 'N/A',
-        expiryTime = rentalStatus.expiryTime,
-        workHours = currentWorkHours,
-        maxHours = Config.MaxDailyHours
-    })
-end
-
--- Đóng UI
-local function CloseUI()
-    SetNuiFocus(false, false)
-    SendNUIMessage({
-        action = 'hideUI'
-    })
-end
-
--- Mở minigame
-local function OpenMinigame(system)
-    local settings = Config.MinigameSettings[system]
-    if not settings then return end
-    
-    SetNuiFocus(true, true)
-    SendNUIMessage({
-        action = 'showMinigame',
-        system = system,
-        title = settings.title,
-        speed = settings.speed,
-        zoneSize = settings.zoneSize,
-        rounds = settings.rounds
-    })
-end
-
--- Mở UI quỹ tiền
-local function OpenEarningsUI()
-    SetNuiFocus(true, true)
-    SendNUIMessage({
-        action = 'showEarningsUI',
-        earnings = currentEarnings,
-        efficiency = currentEfficiency
-    })
 end
 
 -- NUI Callbacks

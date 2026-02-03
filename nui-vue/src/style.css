@@ -265,7 +265,6 @@ body {
 .left-panel .btn {
     width: 100%;
     justify-content: center;
-    padding: 0.975rem 1.25rem;
 }
 
 .stat-item {
@@ -992,10 +991,10 @@ body {
     border-color: #00ff51;
     color: #00ff51;
     max-width: 16rem;
-    padding: 0.875rem 1.25rem;
+    padding: 1rem 2rem;
     font-size: 1.25rem;
-    letter-spacing: 0.125rem;
     margin: 0 auto;
+    transform: translateY(3px);
 }
 
 .btn-start:hover {
@@ -1008,10 +1007,10 @@ body {
     border-color: #ff4444;
     color: #ff4444;
     max-width: 16rem;
-    padding: 0.875rem 1.25rem;
+    padding: 1rem 2rem;
     font-size: 1.25rem;
-    letter-spacing: 0.125rem;
     margin: 0 auto;
+    transform: translateY(3px);
 }
 
 .btn-stop:hover {
@@ -1020,18 +1019,33 @@ body {
 }
 
 .btn-withdraw {
-    background: transparent;
-    border: 0.0625rem solid #ffaa00;
-    border-radius: 0.9375rem;
+    /* background: transparent;
+    border: 0.125rem solid #ffaa00;
+    border-radius: 0.625rem;
     color: #ffaa00;
     width: 100%;
     max-width: 15.5rem;
     justify-content: center;
-    padding: 1.2rem 1.25rem;
+    padding: 1rem 2rem;
     font-size: 1.25rem;
-    font-weight: 900;
-    letter-spacing: 0.125rem;
-    box-shadow: 0 0 1.25rem rgba(255, 170, 0, 0.4);
+    font-weight: 700; */
+
+    color: var(--FECD08, #FECD08);
+    font-family: Goldman;
+    font-size: 1.25rem;
+    font-style: normal;
+    font-weight: 700;
+    line-height: normal;
+    display: flex;
+    padding: 1rem 2rem;
+    justify-content: center;
+    align-items: center;
+    gap: 0.625rem;
+    border-radius: 0.625rem;
+    border-radius: 0.625rem;
+    border: 1px solid var(--FECD08, #FECD08);
+    background: linear-gradient(0deg, rgba(254, 205, 8, 0.30) 0%, rgba(152, 123, 5, 0.00) 100%);
+
 }
 
 .btn-withdraw:hover {

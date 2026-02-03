@@ -91,7 +91,7 @@
           <!-- Status Box dưới cánh quạt -->
           <div class="status-box">
             <div class="status-title">TRẠNG THÁI HỆ THỐNG</div>
-            <div class="status-message offline">⚠ OFFLINE - HẾT THỜI HẠN THUÊ</div>
+            <div class="status-message offline"><span class="red-dot"></span> OFFLINE - HẾT THỜI HẠN THUÊ</div>
           </div>
         </div>
 
@@ -124,7 +124,7 @@
 </template>
 
 <script>
-import { computed } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 
 export default {
   name: 'ExpiryWithdrawUI',
@@ -148,11 +148,23 @@ export default {
   },
   emits: ['close', 'withdraw'],
   setup(props, { emit }) {
+    const currentTime = ref(Math.floor(Date.now() / 1000))
+    
+    // Cập nhật thời gian mỗi giây
+    onMounted(() => {
+      const interval = setInterval(() => {
+        currentTime.value = Math.floor(Date.now() / 1000)
+      }, 1000)
+      
+      onUnmounted(() => {
+        clearInterval(interval)
+      })
+    })
+    
     const remainingTime = computed(() => {
       if (!props.withdrawDeadline) return '0h 0m'
       
-      const currentTime = Math.floor(Date.now() / 1000)
-      const remainingSeconds = props.withdrawDeadline - currentTime
+      const remainingSeconds = props.withdrawDeadline - currentTime.value
       
       if (remainingSeconds <= 0) return 'HẾT HẠN'
       
@@ -401,6 +413,26 @@ export default {
   font-style: normal;
   font-weight: 400;
   line-height: normal;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.red-dot {
+  width: 0.75rem;
+  height: 0.75rem;
+  background: #ff4444;
+  border-radius: 50%;
+  box-shadow: 0 0 0.625rem rgba(255, 68, 68, 0.8);
+  animation: dotBlink 1s ease-in-out infinite;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+@keyframes dotBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
 }
 
 /* Right Section */
