@@ -221,8 +221,8 @@ body {
 }
 
 .close-btn {
-    width: 2.5rem;
-    height: 2.5rem;
+    width: 3rem;
+    height: 3rem;
     background: rgba(255, 0, 0, 0.1);
     border: 0.125rem solid rgba(255, 0, 0, 0.3);
     border-radius: 0.5rem;
@@ -391,6 +391,23 @@ body {
     box-shadow: 0 0 0.9375rem #00ff88;
 }
 
+.status-display .status-dot.maintenance {
+    background: #ff4444;
+    box-shadow: 0 0 0.9375rem #ff4444;
+    animation: maintenancePulse 1.5s ease-in-out infinite;
+}
+
+@keyframes maintenancePulse {
+    0%, 100% {
+        opacity: 1;
+        box-shadow: 0 0 0.9375rem #ff4444;
+    }
+    50% {
+        opacity: 0.5;
+        box-shadow: 0 0 1.875rem #ff4444;
+    }
+}
+
 .status-text {
     letter-spacing: 0.125rem;
     color: rgba(255, 255, 255, 0.50);
@@ -399,6 +416,22 @@ body {
     font-style: normal;
     font-weight: 400;
     line-height: normal;
+}
+
+.status-text.maintenance-text {
+    color: #ff4444;
+    font-weight: 700;
+    text-shadow: 0 0 0.625rem rgba(255, 68, 68, 0.5);
+    animation: maintenanceTextBlink 1.5s ease-in-out infinite;
+}
+
+@keyframes maintenanceTextBlink {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.6;
+    }
 }
 
 .work-time-display {
@@ -1008,6 +1041,7 @@ body {
     font-size: 1.25rem;
     margin: 0 auto;
     transform: translateY(3px);
+    white-space: nowrap;
 }
 
 .btn-start:hover {
@@ -1029,6 +1063,33 @@ body {
 .btn-stop:hover {
     background: rgba(255, 68, 68, 0.1);
     transform: translateY(-0.125rem);
+}
+
+.btn-maintenance {
+    display: flex;
+    padding: 1rem 2rem;
+    justify-content: center;
+    align-items: center;
+    color: #5D5D5F;
+    font-family: Goldman;
+    font-size: 1.25rem;
+    font-style: normal;
+    font-weight: 700;
+    line-height: normal;
+    gap: 0.625rem;
+    border-radius: 0.625rem;
+    border: 1px solid #5D5D5F;
+    background: linear-gradient(180deg, rgba(93, 93, 95, 0.00) 0%, #5D5D5F 100%);
+    max-width: 16rem;
+    margin: 0 auto;
+    transform: translateY(3px);
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.btn-maintenance:hover {
+    background: linear-gradient(180deg, rgba(93, 93, 95, 0.00) 0%, #5D5D5F 100%);
+    transform: translateY(3px);
 }
 
 .btn-withdraw {
@@ -2386,15 +2447,28 @@ body.trowel-cursor * {
 
 /* Disabled button style for work limit reached */
 .btn-start.disabled-limit {
-    background: rgba(255, 68, 68, 0.2);
-    border-color: #ff4444;
-    color: #ff4444;
+    display: flex;
+    padding: 1rem 2rem;
+    justify-content: center;
+    align-items: center;
+    color: #5D5D5F;
+    font-family: Goldman;
+    font-size: 1.25rem;
+    font-style: normal;
+    font-weight: 700;
+    line-height: normal;
+    gap: 0.625rem;
+    border-radius: 0.625rem;
+    border: 1px solid #5D5D5F;
+    background: linear-gradient(180deg, rgba(93, 93, 95, 0.00) 0%, #5D5D5F 100%);
     cursor: not-allowed;
-    opacity: 0.6;
+    opacity: 1;
+    white-space: nowrap;
+    max-width: none;
 }
 
 .btn-start.disabled-limit:hover {
-    background: rgba(255, 68, 68, 0.2);
+    background: linear-gradient(180deg, rgba(93, 93, 95, 0.00) 0%, #5D5D5F 100%);
     box-shadow: none;
     transform: none;
 }

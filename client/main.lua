@@ -46,17 +46,6 @@ local function GetCurrentDay()
     return tostring(days) -- Trả về số ngày kể từ epoch
 end
 
--- Helper: Lấy tuần hiện tại (format: week number)
--- Reset vào 6:00 sáng Thứ Năm giờ Việt Nam
-local function GetCurrentWeek()
-    local timestamp = GetCloudTimeAsInt()
-    -- Điều chỉnh tương tự như GetCurrentDay
-    local vietnamOffset = (7 * 3600) - (6 * 3600) -- UTC+1
-    local adjustedTime = timestamp + vietnamOffset
-    local weeks = math.floor(adjustedTime / 604800) -- 604800 = 7 days in seconds
-    return tostring(weeks) -- Trả về số tuần kể từ epoch
-end
-
 -- Dữ liệu player (chuyển từ server)
 local playerData = {
     onDuty = false,
@@ -73,9 +62,7 @@ local playerData = {
     workStartTime = 0,
     totalWorkHours = 0,
     dailyWorkHours = 0,
-    weeklyWorkHours = 0,
-    lastDayReset = "",
-    lastWeekReset = ""
+    lastDayReset = ""
 }
 
 -- ============================================
@@ -188,11 +175,10 @@ end
 -- KHỞI TẠO VÀ STATEBAG HANDLER
 -- ============================================
 
--- Khởi tạo ngày/tuần khi script load
+-- Khởi tạo ngày khi script load
 CreateThread(function()
     Wait(1000)
     playerData.lastDayReset = GetCurrentDay()
-    playerData.lastWeekReset = GetCurrentWeek()
     
     rentalStatus = {
         isRented = false,
@@ -238,7 +224,6 @@ CreateThread(function()
                     if playerData.onDuty then
                         local workDuration = (GetCurrentTime() - playerData.workStartTime) / 1000 / 3600
                         playerData.dailyWorkHours = playerData.dailyWorkHours + workDuration
-                        playerData.weeklyWorkHours = playerData.weeklyWorkHours + workDuration
                         playerData.onDuty = false
                         isOnDuty = false
                     end
@@ -450,7 +435,6 @@ end
 -- Kiểm tra và reset giới hạn thời gian
 local function CheckTimeLimit()
     local currentDay = GetCurrentDay()
-    local currentWeek = GetCurrentWeek()
     
     -- Reset daily counter
     if playerData.lastDayReset ~= currentDay then
@@ -462,23 +446,9 @@ local function CheckTimeLimit()
         })
     end
     
-    -- Reset weekly counter
-    if playerData.lastWeekReset ~= currentWeek then
-        playerData.weeklyWorkHours = 0
-        playerData.lastWeekReset = currentWeek
-        
-        SendNUIMessage({
-            action = 'resetWorkLimit'
-        })
-    end
-    
-    -- Kiểm tra giới hạn
+    -- Kiểm tra giới hạn ngày
     if playerData.dailyWorkHours >= Config.MaxDailyHours then
         return false, "DAILY_LIMIT"
-    end
-    
-    if playerData.weeklyWorkHours >= Config.MaxWeeklyHours then
-        return false, "WEEKLY_LIMIT"
     end
     
     return true, "OK"
@@ -502,12 +472,7 @@ RegisterNUICallback('startDuty', function(data, cb)
     local canWork, reason = CheckTimeLimit()
     if not canWork then
         if reason == "DAILY_LIMIT" then
-            QBCore.Functions.Notify('❌ Đã đạt giới hạn! Hãy quay lại vào ngày mai.', 'error', 5000)
-            SendNUIMessage({
-                action = 'workLimitReached'
-            })
-        elseif reason == "WEEKLY_LIMIT" then
-            QBCore.Functions.Notify('❌ Đã đạt giới hạn tuần! Hãy quay lại vào tuần sau.', 'error', 5000)
+            QBCore.Functions.Notify('❌ Đã đạt giới hạn 12 giờ/ngày! Hãy quay lại sau 6:00 sáng.', 'error', 5000)
             SendNUIMessage({
                 action = 'workLimitReached'
             })
@@ -567,7 +532,6 @@ RegisterNUICallback('stopDuty', function(data, cb)
         -- Tính thời gian làm việc (milliseconds -> hours)
         local workDuration = (GetCurrentTime() - playerData.workStartTime) / 1000 / 3600
         playerData.dailyWorkHours = playerData.dailyWorkHours + workDuration
-        playerData.weeklyWorkHours = playerData.weeklyWorkHours + workDuration
         
         playerData.onDuty = false
         isOnDuty = false
@@ -817,9 +781,8 @@ CreateThread(function()
             
             -- Kiểm tra giới hạn thời gian (bao gồm cả thời gian ca hiện tại)
             local totalDailyHours = playerData.dailyWorkHours + currentWorkHours
-            local totalWeeklyHours = playerData.weeklyWorkHours + currentWorkHours
             
-            -- Kiểm tra nếu vượt quá giới hạn
+            -- Kiểm tra nếu vượt quá giới hạn ngày
             if totalDailyHours >= Config.MaxDailyHours then
                 -- Tự động kết thúc ca khi hết giờ
                 playerData.onDuty = false
@@ -836,34 +799,6 @@ CreateThread(function()
                 
                 -- Cập nhật thời gian làm việc
                 playerData.dailyWorkHours = totalDailyHours
-                playerData.weeklyWorkHours = totalWeeklyHours
-                
-                SendNUIMessage({
-                    action = 'resetToInitialState'
-                })
-                CloseUI()
-                
-                goto continue
-            end
-            
-            if totalWeeklyHours >= Config.MaxWeeklyHours then
-                -- Tự động kết thúc ca khi hết giờ
-                playerData.onDuty = false
-                isOnDuty = false
-                
-                QBCore.Functions.Notify('⏰ Đã hết giờ làm việc trong tuần! Ca làm việc tự động kết thúc.', 'error', 5000)
-                
-                -- Gửi báo cáo tuần qua lb-phone
-                TriggerServerEvent('windturbine:sendPhoneNotification', 'weeklyLimit', {
-                    totalWeeklyHours = totalWeeklyHours,
-                    maxWeeklyHours = Config.MaxWeeklyHours,
-                    earningsPool = playerData.earningsPool,
-                    efficiency = CalculateEfficiency()
-                })
-                
-                -- Cập nhật thời gian làm việc
-                playerData.dailyWorkHours = totalDailyHours
-                playerData.weeklyWorkHours = totalWeeklyHours
                 
                 SendNUIMessage({
                     action = 'resetToInitialState'

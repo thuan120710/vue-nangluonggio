@@ -191,11 +191,11 @@ export default {
 <style scoped>
 /* Header override */
 .header-logo {
-    left: 3.5rem;
+    left: 4rem;
 }
 
 .close-btn {
-    right: 3.5rem;
+    right: 4rem;
 }
 
 .time-warning {

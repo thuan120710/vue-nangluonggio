@@ -393,12 +393,8 @@ AddEventHandler('windturbine:sendPhoneNotification', function(notifType, data)
             table.concat(criticalList, "\n"))
     
     elseif notifType == 'dailyLimit' then
-        message = string.format("⏰ Kết thúc ca làm việc\n\n📅 Đã đạt giới hạn ngày: %.1f giờ\n💰 Quỹ tiền lương: $%d IC\n📊 Hiệu suất trung bình: %.1f%%\n\nHãy nghỉ ngơi và quay lại vào ngày mai!", 
+        message = string.format("⏰ Kết thúc ca làm việc\n\n📅 Đã đạt giới hạn ngày: %.1f giờ\n💰 Quỹ tiền lương: $%d IC\n📊 Hiệu suất trung bình: %.1f%%\n\nHãy nghỉ ngơi và quay lại sau 6:00 sáng!", 
             data.totalDailyHours, math.floor(data.earningsPool), data.efficiency)
-    
-    elseif notifType == 'weeklyLimit' then
-        message = string.format("📊 Báo cáo tuần\n\n⏰ Tổng giờ làm: %.1f/%.0f giờ\n💰 Quỹ tiền lương: $%d IC\n� Hiệu suất: %.1f%%\n\n🎉 Bạn đã hoàn thành tuần làm việc!\nHãy nghỉ ngơi và quay lại vào tuần sau.", 
-            data.totalWeeklyHours, data.maxWeeklyHours, math.floor(data.earningsPool), data.efficiency)
     end
     
     if message ~= "" then

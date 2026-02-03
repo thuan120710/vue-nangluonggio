@@ -66,8 +66,8 @@
         <div class="stat-item status-section">
           <div class="stat-label center">TRẠNG THÁI HỆ THỐNG</div>
           <div class="status-display">
-            <span class="status-dot" :class="{ online: isOnDuty }"></span>
-            <span class="status-text">{{ fullStatusText }}</span>
+            <span class="status-dot" :class="{ online: isOnDuty && !isMaintenance, maintenance: isMaintenance }"></span>
+            <span class="status-text" :class="{ 'maintenance-text': isMaintenance }">{{ fullStatusText }}</span>
           </div>
         </div>
 
@@ -80,15 +80,16 @@
           @click="$emit('startDuty')"
         >
           <span class="btn-icon">⏻</span>
-          {{ workLimitReached ? 'ĐÃ ĐẠT GIỚI HẠN' : 'KHỞI ĐỘNG' }}
+          {{ workLimitReached ? 'BẢO TRÌ' : 'KHỞI ĐỘNG' }}
         </button>
         <button 
           v-else
-          class="btn btn-stop"
+          class="btn"
+          :class="isMaintenance ? 'btn-maintenance' : 'btn-stop'"
           @click="$emit('stopDuty')"
         >
           <span class="btn-icon">⏻</span>
-          TẠM DỪNG
+          {{ isMaintenance ? 'HƯ HỎNG' : 'TẠM DỪNG' }}
         </button>
       </div>
       
@@ -330,22 +331,38 @@ export default {
       }
     })
     
+    // Kiểm tra trạng thái bảo trì (3 hệ thống ≤ 30%)
+    const isMaintenance = computed(() => {
+      if (!props.isOnDuty) return false
+      
+      const systemValues = Object.values(systemsList.value)
+      const criticalCount = systemValues.filter(value => value <= 30).length
+      
+      return criticalCount >= 3
+    })
+    
     const statusText = computed(() => {
       if (props.workLimitReached) {
-        return 'ĐÃ ĐẠT GIỚI HẠN'
+        return 'BẢO TRÌ'
       }
       if (!props.isOnDuty) {
         return 'OFFLINE'
+      }
+      if (isMaintenance.value) {
+        return 'HƯ HỎNG'
       }
       return 'ONLINE'
     })
     
     const fullStatusText = computed(() => {
       if (props.workLimitReached) {
-        return 'ĐÃ ĐẠT GIỚI HẠN'
+        return 'BẢO TRÌ'
       }
       if (!props.isOnDuty) {
         return 'OFFLINE'
+      }
+      if (isMaintenance.value) {
+        return 'HƯ HỎNG'
       }
       // Format: ONLINE - 0.2 / 12 GIỜ
       const currentHours = (Math.floor(props.workHours * 10) / 10).toFixed(1)
@@ -374,6 +391,7 @@ export default {
       bladeStyle,
       earningRateDisplay,
       remainingTime,
+      isMaintenance,
       statusText,
       fullStatusText,
       formatWorkTime,

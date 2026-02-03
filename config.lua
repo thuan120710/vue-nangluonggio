@@ -14,8 +14,8 @@ Config.RentalPrice = 0 -- MIỄN PHÍ để test
 
 if Config.TestMode then
     -- TEST MODE: Expiry nhanh để test
-    Config.RentalDuration = 60 -- 60 giây = 1 phút (thay vì 7 ngày)
-    Config.GracePeriod = 30 -- 30 giây (thay vì 4 giờ)
+    Config.RentalDuration = 6000 -- 60 giây = 1 phút (thay vì 7 ngày)
+    Config.GracePeriod = 300 -- 30 giây (thay vì 4 giờ)
 else
     -- PRODUCTION: Thời gian thực
     Config.RentalDuration = 604800 -- 7 ngày (giây) - 604800 seconds = 7 days
@@ -33,13 +33,11 @@ if Config.TestMode then
     Config.BaseSalary = 5000 -- IC/chu kỳ (1 phút = 1 giờ) → 5,000 IC/giờ khi 100% hiệu suất
     Config.EarningCycle = 60000 -- 60 giây = 1 phút (tương đương 1 giờ thực tế)
     Config.MaxDailyHours = 12/60 -- 12 phút = 0.2 giờ (tương đương 12 giờ thực tế)
-    Config.MaxWeeklyHours = 84/60 -- 84 phút = 1.4 giờ (tương đương 84 giờ thực tế)
 else
     -- PRODUCTION: Thời gian thực
     Config.BaseSalary = 5000 -- IC/giờ (5,000 IC/giờ)
     Config.EarningCycle = 3600000 -- 3600 giây = 1 giờ
     Config.MaxDailyHours = 12 -- 12 giờ/ngày
-    Config.MaxWeeklyHours = 84 -- 84 giờ/tuần
 end
 
 -- ============================================
