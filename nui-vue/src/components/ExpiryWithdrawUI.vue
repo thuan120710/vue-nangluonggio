@@ -115,7 +115,8 @@
 
           <!-- Withdraw Button -->
           <button class="btn btn-withdraw-expiry" @click="handleWithdraw">
-            💰 RÚT TIỀN
+            <img src="/img/Primary.svg" alt="Money" class="btn-icon-img">
+            RÚT TIỀN
           </button>
         </div>
       </div>
@@ -391,7 +392,7 @@ export default {
     align-items: center;
     gap: 1rem;
     align-self: stretch;
-    transform: translateY(98px);
+    transform: translateY(120px);
 }
 
 .status-title {
@@ -444,7 +445,7 @@ export default {
     gap: 1rem;
     justify-content: center;
     margin-top: 5rem;
-    transform: translateX(2rem);
+    transform: translateX(3.6rem);
 }
 
 .withdraw-section {
@@ -459,7 +460,7 @@ export default {
 .total-income-section-expiry {
     position: relative;
     text-align: center;
-    padding: 8.5rem 1.5rem;
+    padding: 9rem 1.5rem;
 }
 
 .total-glow {
@@ -486,7 +487,7 @@ export default {
     z-index: 1;
     text-align: center;
     font-family: Goldman;
-    font-size: 2rem;
+    font-size: 2.2rem;
     font-style: normal;
     font-weight: 700;
     line-height: normal;
@@ -506,8 +507,8 @@ export default {
     top: 0%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 11rem;
-    height: 11rem;
+    width: 12rem;
+    height: 12rem;
     border: 0.25rem solid rgba(138, 43, 226, 0.9);
     border-radius: 50%;
     z-index: 0;
@@ -550,7 +551,7 @@ export default {
     text-align: center;
     text-shadow: 0 0 1.9px #4CBA6F;
     font-family: Goldman;
-    font-size: 3rem;
+    font-size: 3.2rem;
     font-style: normal;
     font-weight: 700;
     line-height: normal;
@@ -563,6 +564,7 @@ export default {
     justify-content: center;
     align-items: center;
     gap: 0.625rem;
+    transform: translateY(5px);
 }
 
 .warning-time-label {
@@ -574,7 +576,7 @@ export default {
 }
 
 .warning-time-value {
-    font-size: 1.375rem;
+    font-size: 1rem;
     font-weight: 900;
     color: #ff4444;
     text-shadow: 0 0 1.25rem rgba(255, 68, 68, 0.8);
@@ -584,10 +586,10 @@ export default {
 /* Withdraw Button */
 .btn-withdraw-expiry {
     cursor: pointer;
-    font-family: 'Goldman', sans-serif;
+    font-family: 'Goldman';
     min-width: 18rem;
     display: flex;
-    padding: 2rem 4rem;
+    padding: 2rem 4.5rem;
     justify-content: center;
     align-items: center;
     gap: 0.625rem;
@@ -596,10 +598,18 @@ export default {
     background: linear-gradient(0deg, rgba(254, 205, 8, 0.30) 0%, rgba(152, 123, 5, 0.00) 100%);
     color: var(--FECD08, #FECD08);
     font-family: Goldman;
-    font-size: 2rem;
+    font-size: 2.5rem;
     font-style: normal;
     font-weight: 700;
     line-height: normal;
+    transform: translateY(13px);
+}
+
+.btn-withdraw-expiry .btn-icon-img {
+   width: 1.9375rem;
+   height: 1.75rem;
+   aspect-ratio: 31/28;
+   fill: var(--FECD08, #FECD08);
 }
 
 .btn-withdraw-expiry:hover {

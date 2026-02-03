@@ -612,16 +612,22 @@ body {
 }
 
 .income-label {
-    font-size: 1rem;
-    font-weight: 700;
     letter-spacing: 0.125rem;
-    color: #00ffff;
-    text-shadow: 0 0 0.625rem rgba(0, 255, 255, 0.6);
     margin-bottom: 1rem;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 0.3125rem;
+    text-align: center;
+    font-family: Goldman;
+    font-size: 1rem;
+    font-style: normal;
+    font-weight: 700;
+    line-height: normal;
+    background: linear-gradient(180deg, #80F0FF 0%, #00C4DD 100%);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
 }
 
 .income-value {
@@ -657,15 +663,22 @@ body {
 }
 
 .total-label {
-    font-size: 1.25rem;
-    font-weight: 700;
     letter-spacing: 0.1875rem;
-    color: #00ffff;
-    text-shadow: 0 0 0.9375rem rgba(0, 255, 255, 0.8);
     margin-bottom: 0.9375rem;
     position: relative;
     z-index: 1;
     min-width: 14.375rem;
+
+    text-align: center;
+    font-family: Goldman;
+    font-size: 1.25rem;
+    font-style: normal;
+    font-weight: 700;
+    line-height: normal;
+    background: linear-gradient(180deg, #80F0FF 0%, #00C4DD 100%);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
 }
 
 .total-value-wrapper {

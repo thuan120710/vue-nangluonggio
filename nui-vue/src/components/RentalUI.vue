@@ -209,11 +209,11 @@ export default {
 }
 
 .header-logo {
-    left: 3.5rem;
+    left: 4rem;
 }
 
 .close-btn {
-    right: 3.5rem;
+    right: 4rem;
 }
 
 /* Rental UI Styles */
