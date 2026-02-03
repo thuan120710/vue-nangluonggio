@@ -34,16 +34,26 @@ local function GetCurrentTime()
 end
 
 -- Helper: Lấy ngày hiện tại (format: YYYY-MM-DD)
+-- Reset vào 6:00 sáng giờ Việt Nam (UTC+7)
 local function GetCurrentDay()
     local timestamp = GetCloudTimeAsInt()
-    local days = math.floor(timestamp / 86400)
+    -- Điều chỉnh để reset vào 6:00 sáng VN thay vì 00:00 VN
+    -- 6:00 VN = 23:00 UTC ngày hôm trước
+    -- Nên ta trừ đi 1 giờ (3600 giây) từ UTC+7
+    local vietnamOffset = (7 * 3600) - (6 * 3600) -- UTC+7 - 6 giờ = UTC+1
+    local adjustedTime = timestamp + vietnamOffset
+    local days = math.floor(adjustedTime / 86400)
     return tostring(days) -- Trả về số ngày kể từ epoch
 end
 
 -- Helper: Lấy tuần hiện tại (format: week number)
+-- Reset vào 6:00 sáng Thứ Năm giờ Việt Nam
 local function GetCurrentWeek()
     local timestamp = GetCloudTimeAsInt()
-    local weeks = math.floor(timestamp / 604800) -- 604800 = 7 days in seconds
+    -- Điều chỉnh tương tự như GetCurrentDay
+    local vietnamOffset = (7 * 3600) - (6 * 3600) -- UTC+1
+    local adjustedTime = timestamp + vietnamOffset
+    local weeks = math.floor(adjustedTime / 604800) -- 604800 = 7 days in seconds
     return tostring(weeks) -- Trả về số tuần kể từ epoch
 end
 
