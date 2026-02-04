@@ -211,9 +211,9 @@ CreateThread(function()
             
             print('[DEBUG CLIENT] Updated rentalStatus: isGracePeriod=' .. tostring(rentalStatus.isGracePeriod) .. ', isOwner=' .. tostring(rentalStatus.isOwner))
             
-            -- Nếu chuyển sang grace period và đang là owner → Tự động đóng MainUI và mở ExpiryWithdrawUI
+            -- Nếu chuyển sang grace period và đang là owner → CHỈ đóng UI và tắt duty, KHÔNG tự động mở ExpiryWithdrawUI
             if not wasGracePeriod and rentalStatus.isGracePeriod and rentalStatus.isOwner then
-                print('[DEBUG CLIENT] Switching to ExpiryWithdrawUI...')
+                print('[DEBUG CLIENT] Entering grace period - closing UI and stopping duty')
                 
                 -- Chạy trong thread riêng để tránh block StateBag handler
                 CreateThread(function()
@@ -228,9 +228,7 @@ CreateThread(function()
                         isOnDuty = false
                     end
                     
-                    -- Đợi 1 giây rồi mở ExpiryWithdrawUI
-                    Wait(1000)
-                    OpenExpiryWithdrawUI()
+                    -- KHÔNG tự động mở ExpiryWithdrawUI - chỉ mở khi người chơi tương tác với máy
                 end)
             end
         else
@@ -374,7 +372,7 @@ local function ApplyPenalty()
         numSystems = math.random(numSystems[1], numSystems[2])
     end
     
-    -- Random chọn hệ thống bị ảnh hưởng
+    -- Random chọn hệ thống bị ảnh hưởng (loại bỏ các hệ thống đã 0%)
     local systemNames = {"stability", "electric", "lubrication", "blades", "safety"}
     local systemDisplayNames = {
         stability = "Độ ổn định",
@@ -383,12 +381,30 @@ local function ApplyPenalty()
         blades = "Thân tháp",
         safety = "An toàn"
     }
+    
+    -- Lọc ra các hệ thống còn > 0%
+    local availableSystems = {}
+    for _, systemName in ipairs(systemNames) do
+        if playerData.systems[systemName] > 0 then
+            table.insert(availableSystems, systemName)
+        end
+    end
+    
+    -- Nếu không còn hệ thống nào > 0%, không áp dụng penalty
+    if #availableSystems == 0 then
+        QBCore.Functions.Notify('⚠️ Tất cả hệ thống đã hỏng hoàn toàn!', 'error', 3000)
+        return
+    end
+    
+    -- Giới hạn số lượng hệ thống bị ảnh hưởng theo số hệ thống còn lại
+    numSystems = math.min(numSystems, #availableSystems)
+    
     local affectedSystems = {}
     local systemDetails = {}
     
     for i = 1, numSystems do
-        local randomIndex = math.random(1, #systemNames)
-        local systemName = table.remove(systemNames, randomIndex)
+        local randomIndex = math.random(1, #availableSystems)
+        local systemName = table.remove(availableSystems, randomIndex)
         
         local beforeValue = playerData.systems[systemName]
         local afterValue = math.max(0, beforeValue - selectedPenalty.damage)
