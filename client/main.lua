@@ -161,15 +161,7 @@ local function OpenMinigame(system)
     })
 end
 
--- Mở UI quỹ tiền
-local function OpenEarningsUI()
-    SetNuiFocus(true, true)
-    SendNUIMessage({
-        action = 'showEarningsUI',
-        earnings = currentEarnings,
-        efficiency = currentEfficiency
-    })
-end
+
 
 -- ============================================
 -- KHỞI TẠO VÀ STATEBAG HANDLER
@@ -192,8 +184,6 @@ CreateThread(function()
     
     -- Lắng nghe StateBag - TỰ ĐỘNG CẬP NHẬT KHI CÓ THAY ĐỔI (KHÔNG CẦN CHECK!)
     AddStateBagChangeHandler('turbine_' .. turbineId, 'global', function(bagName, key, value)
-        print('[DEBUG CLIENT] StateBag changed:', json.encode(value))
-        
         local wasGracePeriod = rentalStatus.isGracePeriod
         local wasOwner = rentalStatus.isOwner
         
@@ -202,29 +192,33 @@ CreateThread(function()
             local isOwner = (value.isRented and Player.citizenid == value.citizenid) or 
                            (value.isGracePeriod and Player.citizenid == value.citizenid)
             
+            local newIsGracePeriod = value.isGracePeriod or false
+            
             rentalStatus.isRented = value.isRented
             rentalStatus.isOwner = isOwner
             rentalStatus.ownerName = value.ownerName
             rentalStatus.expiryTime = value.expiryTime
             rentalStatus.withdrawDeadline = value.withdrawDeadline
-            rentalStatus.isGracePeriod = value.isGracePeriod or false
+            rentalStatus.isGracePeriod = newIsGracePeriod
             
-            print('[DEBUG CLIENT] Updated rentalStatus: isGracePeriod=' .. tostring(rentalStatus.isGracePeriod) .. ', isOwner=' .. tostring(rentalStatus.isOwner))
-            
-            -- Nếu chuyển sang grace period và đang là owner → CHỈ đóng UI và tắt duty, KHÔNG tự động mở ExpiryWithdrawUI
-            if not wasGracePeriod and rentalStatus.isGracePeriod and rentalStatus.isOwner then
-                print('[DEBUG CLIENT] Entering grace period - closing UI and stopping duty')
+            -- Nếu chuyển sang grace period và đang là owner → Tắt duty, đóng UI, thông báo
+            if not wasGracePeriod and newIsGracePeriod and isOwner then
+                -- Tắt duty ngay lập tức (KHÔNG cần thread riêng)
+                if playerData.onDuty then
+                    local workDuration = (GetCurrentTime() - playerData.workStartTime) / 1000 / 3600
+                    playerData.dailyWorkHours = playerData.dailyWorkHours + workDuration
+                    playerData.onDuty = false
+                    isOnDuty = false
+                end
                 
-                -- Chạy trong thread riêng để tránh block StateBag handler
-                CreateThread(function()
-                    -- Đóng UI hiện tại
-                    CloseUI()
-                    
-                    -- Tắt duty nếu đang bật
-                    StopDuty()
-                    
-                    -- KHÔNG tự động mở ExpiryWithdrawUI - chỉ mở khi người chơi tương tác với máy
-                end)
+                -- Đóng UI ngay lập tức
+                SetNuiFocus(false, false)
+                SendNUIMessage({
+                    action = 'hideUI'
+                })
+                
+                -- Thông báo cho người chơi
+                QBCore.Functions.Notify('⏰ Thời hạn thuê đã hết! Bạn có 4 giờ để rút tiền.', 'error', 7000)
             end
         else
             -- Server reset hoặc trạm hết hạn → Reset client
@@ -237,7 +231,10 @@ CreateThread(function()
             
             -- Đóng UI nếu đang mở
             if wasOwner then
-                CloseUI()
+                SetNuiFocus(false, false)
+                SendNUIMessage({
+                    action = 'hideUI'
+                })
             end
         end
     end)
@@ -418,7 +415,7 @@ local function ApplyPenalty()
     
     -- Nếu không còn hệ thống nào > 0%, không áp dụng penalty
     if #availableSystems == 0 then
-        QBCore.Functions.Notify('⚠️ Tất cả hệ thống đã hỏng hoàn toàn!', 'error', 3000)
+        QBCore.Functions.Notify('⚠️ Tất cả hệ thống đã hỏng hoàn toàn!', 'warning', 3000)
         return
     end
     
@@ -443,8 +440,8 @@ local function ApplyPenalty()
     -- Thông báo chi tiết
     local detailsText = table.concat(systemDetails, ' | ')
     QBCore.Functions.Notify(
-        string.format('⚠️ Penalty! Giảm %d%%: %s', selectedPenalty.damage, detailsText), 
-        'error', 7000)
+        string.format('⚠️ Cảnh báo hư hỏng! Giảm %d%%: %s', selectedPenalty.damage, detailsText), 
+        'warning', 7000)
     
     -- Gửi cảnh báo penalty qua lb-phone
     TriggerServerEvent('windturbine:sendPhoneNotification', 'penalty', {
@@ -487,6 +484,13 @@ RegisterNUICallback('close', function(data, cb)
 end)
 
 RegisterNUICallback('startDuty', function(data, cb)
+    -- Không cho phép bật duty khi đang grace period
+    if rentalStatus.isGracePeriod then
+        QBCore.Functions.Notify('❌ Không thể làm việc trong thời gian grace period!', 'error', 5000)
+        cb('ok')
+        return
+    end
+    
     -- Kiểm tra giới hạn thời gian
     local canWork, reason = CheckTimeLimit()
     if not canWork then
@@ -551,6 +555,13 @@ RegisterNUICallback('stopDuty', function(data, cb)
 end)
 
 RegisterNUICallback('repair', function(data, cb)
+    -- Không cho phép sửa chữa khi đang grace period
+    if rentalStatus.isGracePeriod then
+        QBCore.Functions.Notify('❌ Không thể sửa chữa trong thời gian grace period!', 'error', 5000)
+        cb('ok')
+        return
+    end
+    
     if data.system then
         OpenMinigame(data.system)
     end
@@ -622,11 +633,6 @@ RegisterNUICallback('minigameResult', function(data, cb)
     cb('ok')
 end)
 
-RegisterNUICallback('openEarnings', function(data, cb)
-    OpenEarningsUI()
-    cb('ok')
-end)
-
 RegisterNUICallback('withdrawEarnings', function(data, cb)
     local amount = math.floor(playerData.earningsPool)
     
@@ -643,11 +649,6 @@ RegisterNUICallback('withdrawEarnings', function(data, cb)
     TriggerServerEvent('windturbine:withdrawEarnings', amount, isGracePeriod, turbineId)
     
     PlaySound(-1, "PICK_UP", "HUD_FRONTEND_DEFAULT_SOUNDSET", 0, 0, 1)
-    cb('ok')
-end)
-
-RegisterNUICallback('backToMain', function(data, cb)
-    OpenMainUI()
     cb('ok')
 end)
 
@@ -721,7 +722,8 @@ CreateThread(function()
     while true do
         Wait(1000) -- Cập nhật mỗi giây
         
-        if playerData.onDuty then
+        -- KHÔNG hoạt động khi đang grace period
+        if playerData.onDuty and not rentalStatus.isGracePeriod then
             local currentTime = GetCurrentTime()
             local currentWorkHours = (currentTime - playerData.workStartTime) / 1000 / 3600
             
@@ -740,7 +742,8 @@ CreateThread(function()
     while true do
         Wait(5000) -- Check mỗi 5 giây để chính xác hơn
         
-        if playerData.onDuty then
+        -- KHÔNG hoạt động khi đang grace period
+        if playerData.onDuty and not rentalStatus.isGracePeriod then
             local currentTime = GetCurrentTime()
             
             -- Tính thời gian làm việc hiện tại (milliseconds -> hours)

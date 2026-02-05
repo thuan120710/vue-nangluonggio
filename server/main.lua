@@ -39,7 +39,6 @@ local function BroadcastRentalStatus(turbineId)
             withdrawDeadline = nil,
             isGracePeriod = false
         }
-        print('[DEBUG] Broadcast rental status: isRented=true, owner=' .. rentalData.ownerName)
     elseif graceData then
         -- Đang trong grace period (4 giờ để rút tiền)
         GlobalState['turbine_' .. turbineId] = {
@@ -50,7 +49,6 @@ local function BroadcastRentalStatus(turbineId)
             withdrawDeadline = graceData.withdrawDeadline,
             isGracePeriod = true
         }
-        print('[DEBUG] Broadcast grace period: withdrawDeadline=' .. graceData.withdrawDeadline .. ', owner=' .. graceData.ownerName)
     else
         GlobalState['turbine_' .. turbineId] = {
             isRented = false,
@@ -60,7 +58,6 @@ local function BroadcastRentalStatus(turbineId)
             withdrawDeadline = nil,
             isGracePeriod = false
         }
-        print('[DEBUG] Broadcast reset: turbine available')
     end
 end
 

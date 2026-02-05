@@ -95,7 +95,7 @@
       
       <!-- Turbine Center -->
       <div class="turbine-section">
-        <div class="turbine-container" @click="$emit('openEarnings')">
+        <div class="turbine-container">
           <!-- Outer Rings -->
           <div class="outer-ring ring-1"></div>
           <div class="outer-ring ring-2"></div>
@@ -253,7 +253,7 @@ export default {
       default: null
     }
   },
-  emits: ['close', 'startDuty', 'stopDuty', 'repair', 'openEarnings', 'withdraw'],
+  emits: ['close', 'startDuty', 'stopDuty', 'repair', 'withdraw'],
   setup(props, { emit }) {
     const currentTime = ref(Math.floor(Date.now() / 1000))
     

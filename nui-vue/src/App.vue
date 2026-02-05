@@ -29,7 +29,6 @@
       @startDuty="handleStartDuty"
       @stopDuty="handleStopDuty"
       @repair="handleRepair"
-      @openEarnings="handleOpenEarnings"
       @withdraw="handleWithdraw"
     />
     
@@ -63,16 +62,6 @@
       @result="handleMinigameResult"
     />
     
-    <!-- Earnings UI -->
-    <EarningsUI
-      v-if="currentView === 'earnings'"
-      :earnings="currentEarnings"
-      :efficiency="currentEfficiency"
-      @close="handleCloseEarnings"
-      @withdraw="handleWithdraw"
-      @back="handleBackToMain"
-    />
-    
     <!-- Expiry Withdraw UI -->
     <ExpiryWithdrawUI
       v-if="currentView === 'expiryWithdraw'"
@@ -94,7 +83,6 @@ import MinigameUI from './components/MinigameUI.vue'
 import FanMinigameUI from './components/FanMinigameUI.vue'
 import CircuitBreakerUI from './components/CircuitBreakerUI.vue'
 import CrackRepairUI from './components/CrackRepairUI.vue'
-import EarningsUI from './components/EarningsUI.vue'
 import ExpiryWithdrawUI from './components/ExpiryWithdrawUI.vue'
 import { post } from './utils/api'
 
@@ -107,7 +95,6 @@ export default {
     FanMinigameUI,
     CircuitBreakerUI,
     CrackRepairUI,
-    EarningsUI,
     ExpiryWithdrawUI
   },
   setup() {
@@ -165,21 +152,9 @@ export default {
       post('repair', { system })
     }
     
-    const handleOpenEarnings = () => {
-      post('openEarnings')
-    }
-    
-    const handleCloseEarnings = () => {
-      currentView.value = 'main'
-    }
-    
     const handleWithdraw = () => {
       post('withdrawEarnings', { isGracePeriod: false })
       // Không chuyển view, giữ nguyên ở MainUI
-    }
-    
-    const handleBackToMain = () => {
-      post('backToMain')
     }
     
     const handleMinigameResult = (result) => {
@@ -242,12 +217,6 @@ export default {
           } else {
             currentView.value = 'minigame'
           }
-          break
-          
-        case 'showEarningsUI':
-          currentView.value = 'earnings'
-          if (data.earnings !== undefined) currentEarnings.value = data.earnings
-          if (data.efficiency !== undefined) currentEfficiency.value = data.efficiency
           break
           
         case 'showExpiryWithdrawUI':
@@ -387,10 +356,7 @@ export default {
       handleStartDuty,
       handleStopDuty,
       handleRepair,
-      handleOpenEarnings,
-      handleCloseEarnings,
       handleWithdraw,
-      handleBackToMain,
       handleMinigameResult,
       handleExpiryWithdraw
     }

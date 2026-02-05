@@ -14,7 +14,7 @@ Config.RentalPrice = 0 -- MIỄN PHÍ để test
 
 if Config.TestMode then
     -- TEST MODE: Expiry nhanh để test
-    Config.RentalDuration = 150 -- 60 giây = 1 phút (thay vì 7 ngày)
+    Config.RentalDuration = 1200 -- 60 giây = 1 phút (thay vì 7 ngày)
     Config.GracePeriod = 300 -- 30 giây (thay vì 4 giờ)
 else
     -- PRODUCTION: Thời gian thực
