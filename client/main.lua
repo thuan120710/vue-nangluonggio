@@ -221,12 +221,7 @@ CreateThread(function()
                     CloseUI()
                     
                     -- Tắt duty nếu đang bật
-                    if playerData.onDuty then
-                        local workDuration = (GetCurrentTime() - playerData.workStartTime) / 1000 / 3600
-                        playerData.dailyWorkHours = playerData.dailyWorkHours + workDuration
-                        playerData.onDuty = false
-                        isOnDuty = false
-                    end
+                    StopDuty()
                     
                     -- KHÔNG tự động mở ExpiryWithdrawUI - chỉ mở khi người chơi tương tác với máy
                 end)
@@ -329,6 +324,37 @@ local function CalculateEarnings()
     return earnPerMinute
 end
 
+-- Helper: Cập nhật UI (gộp logic trùng lặp)
+local function UpdateUI()
+    local actualEarningRate = CalculateSystemProfit() * 4
+    
+    currentSystems = playerData.systems
+    currentEfficiency = CalculateEfficiency()
+    
+    SendNUIMessage({
+        action = 'updateSystems',
+        systems = currentSystems
+    })
+    SendNUIMessage({
+        action = 'updateEfficiency',
+        efficiency = currentEfficiency
+    })
+    SendNUIMessage({
+        action = 'updateActualEarningRate',
+        earningRate = actualEarningRate
+    })
+end
+
+-- Helper: Tắt duty (gộp logic trùng lặp)
+local function StopDuty()
+    if playerData.onDuty then
+        local workDuration = (GetCurrentTime() - playerData.workStartTime) / 1000 / 3600
+        playerData.dailyWorkHours = playerData.dailyWorkHours + workDuration
+        playerData.onDuty = false
+        isOnDuty = false
+    end
+end
+
 -- Áp dụng penalty theo giờ hoạt động
 local function ApplyPenalty()
     if not playerData.onDuty then return end
@@ -428,24 +454,8 @@ local function ApplyPenalty()
         systemDetails = systemDetails
     })
     
-    local actualEarningRate = CalculateSystemProfit() * 4
-    
     -- Update UI
-    currentSystems = playerData.systems
-    currentEfficiency = CalculateEfficiency()
-    
-    SendNUIMessage({
-        action = 'updateSystems',
-        systems = currentSystems
-    })
-    SendNUIMessage({
-        action = 'updateEfficiency',
-        efficiency = currentEfficiency
-    })
-    SendNUIMessage({
-        action = 'updateActualEarningRate',
-        earningRate = actualEarningRate
-    })
+    UpdateUI()
 end
 
 -- Kiểm tra và reset giới hạn thời gian
@@ -477,13 +487,6 @@ RegisterNUICallback('close', function(data, cb)
 end)
 
 RegisterNUICallback('startDuty', function(data, cb)
-    -- Kiểm tra quyền sở hữu trạm
-    if not rentalStatus.isOwner then
-        QBCore.Functions.Notify('❌ Bạn không phải chủ trạm này!', 'error')
-        cb('ok')
-        return
-    end
-    
     -- Kiểm tra giới hạn thời gian
     local canWork, reason = CheckTimeLimit()
     if not canWork then
@@ -507,23 +510,9 @@ RegisterNUICallback('startDuty', function(data, cb)
     currentEfficiency = CalculateEfficiency()
     currentEarnings = playerData.earningsPool
     
-    local actualEarningRate = CalculateSystemProfit() * 4
-    
-    SendNUIMessage({
-        action = 'updateSystems',
-        systems = currentSystems
-    })
-    SendNUIMessage({
-        action = 'updateEfficiency',
-        efficiency = currentEfficiency
-    })
     SendNUIMessage({
         action = 'updateEarningsPool',
         earnings = currentEarnings
-    })
-    SendNUIMessage({
-        action = 'updateActualEarningRate',
-        earningRate = actualEarningRate
     })
     SendNUIMessage({
         action = 'updateWorkTime',
@@ -531,10 +520,14 @@ RegisterNUICallback('startDuty', function(data, cb)
         maxHours = Config.MaxDailyHours
     })
     
+    -- Update UI (systems, efficiency, earningRate)
+    UpdateUI()
+    
     QBCore.Functions.Notify('✅ Đã bắt đầu ca làm việc tại cối xay gió!', 'success', 3000)
     PlaySound(-1, "CHECKPOINT_PERFECT", "HUD_MINI_GAME_SOUNDSET", 0, 0, 1)
     
     -- Gửi tin nhắn chào mừng qua lb-phone
+    local actualEarningRate = CalculateSystemProfit() * 4
     TriggerServerEvent('windturbine:sendPhoneNotification', 'welcome', {
         systems = playerData.systems,
         earningRate = actualEarningRate
@@ -544,15 +537,7 @@ RegisterNUICallback('startDuty', function(data, cb)
 end)
 
 RegisterNUICallback('stopDuty', function(data, cb)
-    if playerData.onDuty then
-        -- Tính thời gian làm việc (milliseconds -> hours)
-        local workDuration = (GetCurrentTime() - playerData.workStartTime) / 1000 / 3600
-        playerData.dailyWorkHours = playerData.dailyWorkHours + workDuration
-        
-        playerData.onDuty = false
-        isOnDuty = false
-    end
-    
+    StopDuty()
     CloseUI()
     
     QBCore.Functions.Notify('👋 Đã kết thúc ca làm việc!', 'primary', 3000)
@@ -600,23 +585,8 @@ RegisterNUICallback('minigameResult', function(data, cb)
     playerData.systems[system] = math.min(100, playerData.systems[system] + reward)
     local afterValue = playerData.systems[system]
     
-    local actualEarningRate = CalculateSystemProfit() * 4
-    
-    currentSystems = playerData.systems
-    currentEfficiency = CalculateEfficiency()
-    
-    SendNUIMessage({
-        action = 'updateSystems',
-        systems = currentSystems
-    })
-    SendNUIMessage({
-        action = 'updateEfficiency',
-        efficiency = currentEfficiency
-    })
-    SendNUIMessage({
-        action = 'updateActualEarningRate',
-        earningRate = actualEarningRate
-    })
+    -- Update UI
+    UpdateUI()
     
     -- Thông báo kết quả sửa chữa
     if result == 'perfect' then
@@ -632,6 +602,7 @@ RegisterNUICallback('minigameResult', function(data, cb)
     
     -- Gửi thông báo sửa chữa qua lb-phone (chỉ khi perfect hoặc good)
     if result == 'perfect' or result == 'good' then
+        local actualEarningRate = CalculateSystemProfit() * 4
         TriggerServerEvent('windturbine:sendPhoneNotification', 'repair', {
             system = system,
             result = result,
@@ -665,8 +636,11 @@ RegisterNUICallback('withdrawEarnings', function(data, cb)
         return
     end
     
-    -- Gửi request lên server để thêm tiền
-    TriggerServerEvent('windturbine:withdrawEarnings', amount)
+    -- Kiểm tra xem có phải rút tiền grace period không
+    local isGracePeriod = data.isGracePeriod or false
+    
+    -- Gửi request lên server (server sẽ trả về event để reset earnings pool)
+    TriggerServerEvent('windturbine:withdrawEarnings', amount, isGracePeriod, turbineId)
     
     PlaySound(-1, "PICK_UP", "HUD_FRONTEND_DEFAULT_SOUNDSET", 0, 0, 1)
     cb('ok')
@@ -674,26 +648,6 @@ end)
 
 RegisterNUICallback('backToMain', function(data, cb)
     OpenMainUI()
-    cb('ok')
-end)
-
--- NUI Callback: Rút tiền trong grace period
-RegisterNUICallback('expiryWithdraw', function(data, cb)
-    local amount = math.floor(playerData.earningsPool)
-    
-    if amount <= 0 then
-        QBCore.Functions.Notify('❌ Không có tiền để rút!', 'error')
-        cb('ok')
-        return
-    end
-    
-    -- Gửi request lên server
-    TriggerServerEvent('windturbine:expiryWithdraw', turbineId, amount)
-    
-    -- Reset earnings pool
-    playerData.earningsPool = 0
-    currentEarnings = 0
-    
     cb('ok')
 end)
 
@@ -739,8 +693,10 @@ AddEventHandler('windturbine:rentFailed', function()
     -- StateBag đã tự động cập nhật, không cần làm gì
     QBCore.Functions.Notify('❌ Không thể thuê trạm này!', 'error', 3000)
 end)
+
 RegisterNetEvent('windturbine:withdrawSuccess')
-AddEventHandler('windturbine:withdrawSuccess', function(amount)
+AddEventHandler('windturbine:withdrawSuccess', function(amount, isGracePeriod)
+    -- Reset player data
     playerData.earningsPool = 0
     currentEarnings = 0
     
@@ -749,19 +705,15 @@ AddEventHandler('windturbine:withdrawSuccess', function(amount)
         earnings = 0
     })
     
-    QBCore.Functions.Notify(string.format('💰 Đã rút $%d từ quỹ tiền lương!', amount), 'success')
-end)
-
-RegisterNetEvent('windturbine:expiryWithdrawSuccess')
-AddEventHandler('windturbine:expiryWithdrawSuccess', function()
-    -- Reset player data
-    playerData.earningsPool = 0
-    currentEarnings = 0
-    
-    -- Đóng UI
-    CloseUI()
-    
-    QBCore.Functions.Notify('✅ Đã rút tiền thành công! Trạm đã được reset.', 'success', 5000)
+    -- Xử lý theo loại rút tiền
+    if isGracePeriod then
+        -- Rút tiền grace period: Đóng UI
+        CloseUI()
+        QBCore.Functions.Notify('✅ Đã rút tiền thành công! Trạm đã được reset.', 'success', 5000)
+    else
+        -- Rút tiền bình thường: Giữ UI mở
+        QBCore.Functions.Notify(string.format('💰 Đã rút $%d từ quỹ tiền lương!', amount), 'success')
+    end
 end)
 
 -- Thread: Cập nhật thời gian làm việc liên tục (mỗi giây)
@@ -966,15 +918,7 @@ CreateThread(function()
 
             -- Kiểm tra bấm phím E
             if IsControlJustReleased(0, 38) then 
-                if rentalStatus.isRented and not rentalStatus.isOwner then
-                    local currentTime = GetGameTimer()
-                    if currentTime - (lastNotifyTime or 0) > 5000 then
-                        QBCore.Functions.Notify('❌ Trạm này đã có người thuê!', 'error', 5000)
-                        lastNotifyTime = currentTime
-                    end
-                else
-                    OpenMainUI()
-                end
+                OpenMainUI()
             end
         end
         Wait(sleep)

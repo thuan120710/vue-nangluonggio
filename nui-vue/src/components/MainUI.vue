@@ -176,7 +176,7 @@
         <button 
           v-if="isOnDuty"
           class="btn btn-withdraw"
-          @click="$emit('openEarnings')"
+          @click="$emit('withdraw')"
         >
           <img src="/img/Primary.svg" alt="Money" class="btn-icon-img">
           RÚT TIỀN
@@ -253,7 +253,7 @@ export default {
       default: null
     }
   },
-  emits: ['close', 'startDuty', 'stopDuty', 'repair', 'openEarnings'],
+  emits: ['close', 'startDuty', 'stopDuty', 'repair', 'openEarnings', 'withdraw'],
   setup(props, { emit }) {
     const currentTime = ref(Math.floor(Date.now() / 1000))
     

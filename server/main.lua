@@ -133,42 +133,14 @@ local function CheckRentalExpiry(turbineId)
     return false
 end
 
--- Helper: Lấy thông tin rental
-local function GetRentalInfo(turbineId)
-    CheckRentalExpiry(turbineId)
-    return TurbineRentals[turbineId]
-end
-
--- Helper: Lấy thông tin grace period
-local function GetGracePeriodInfo(turbineId)
-    CheckRentalExpiry(turbineId)
-    return TurbineExpiryGracePeriod[turbineId]
-end
-
--- Event: Rút tiền trong grace period
-RegisterNetEvent('windturbine:expiryWithdraw')
-AddEventHandler('windturbine:expiryWithdraw', function(turbineId, amount)
+-- Event: Rút tiền (merge cả 2 loại: bình thường và grace period)
+RegisterNetEvent('windturbine:withdrawEarnings')
+AddEventHandler('windturbine:withdrawEarnings', function(amount, isGracePeriod, turbineId)
     local playerId = source
     local Player = QBCore.Functions.GetPlayer(playerId)
     
     if not Player then
         TriggerClientEvent('QBCore:Notify', playerId, '❌ Lỗi hệ thống!', 'error')
-        return
-    end
-    
-    -- Kiểm tra grace period
-    CheckRentalExpiry(turbineId)
-    local graceData = TurbineExpiryGracePeriod[turbineId]
-    
-    if not graceData then
-        TriggerClientEvent('QBCore:Notify', playerId, '❌ Không có tiền để rút!', 'error')
-        return
-    end
-    
-    -- Kiểm tra owner
-    local citizenid = Player.PlayerData.citizenid
-    if graceData.citizenid ~= citizenid then
-        TriggerClientEvent('QBCore:Notify', playerId, '❌ Bạn không phải chủ trạm này!', 'error')
         return
     end
     
@@ -178,51 +150,50 @@ AddEventHandler('windturbine:expiryWithdraw', function(turbineId, amount)
         return
     end
     
-    -- Rút tiền thành công
-    Player.Functions.AddMoney('cash', amount)
-    
-    -- Reset trạm về trạng thái có thể thuê lại
-    TurbineExpiryGracePeriod[turbineId] = nil
-    BroadcastRentalStatus(turbineId)
-    
-    -- Thông báo
-    TriggerClientEvent('QBCore:Notify', playerId, 
-        string.format('✅ Đã rút $%s IC thành công!', string.format("%d", amount)), 
-        'success', 5000)
-    
-    TriggerClientEvent('windturbine:expiryWithdrawSuccess', playerId)
-    
-    -- Gửi phone notification
-    local phoneNumber = exports["lb-phone"]:GetEquippedPhoneNumber(playerId)
-    if phoneNumber then
-        local withdrawMsg = string.format("💰 Rút tiền thành công\n\nSố tiền: $%s IC\nThời gian: %s\n\n✅ Trạm đã được reset. Bạn có thể thuê lại bất cứ lúc nào!", 
-            string.format("%d", amount), os.date("%H:%M:%S - %d/%m/%Y"))
-        exports['lb-phone']:SendMessage('Trạm Điện Gió', tostring(phoneNumber), withdrawMsg, nil, nil, nil)
-    end
-end)
-
--- Event: Rút tiền
-RegisterNetEvent('windturbine:withdrawEarnings')
-AddEventHandler('windturbine:withdrawEarnings', function(amount)
-    local playerId = source
-    
-    if not amount or amount <= 0 then
-        TriggerClientEvent('QBCore:Notify', playerId, '❌ Không có tiền để rút!', 'error')
-        return
-    end
-    
-    local Player = QBCore.Functions.GetPlayer(playerId)
-    if Player then
+    -- Xử lý rút tiền trong grace period
+    if isGracePeriod and turbineId then
+        -- Kiểm tra grace period
+        CheckRentalExpiry(turbineId)
+        local graceData = TurbineExpiryGracePeriod[turbineId]
+        
+        if not graceData then
+            TriggerClientEvent('QBCore:Notify', playerId, '❌ Không có tiền để rút!', 'error')
+            return
+        end
+        
+        -- Kiểm tra owner
+        local citizenid = Player.PlayerData.citizenid
+        if graceData.citizenid ~= citizenid then
+            TriggerClientEvent('QBCore:Notify', playerId, '❌ Bạn không phải chủ trạm này!', 'error')
+            return
+        end
+        
+        -- Rút tiền thành công
         Player.Functions.AddMoney('cash', amount)
-        TriggerClientEvent('windturbine:withdrawSuccess', playerId, amount)
+        
+        -- Reset trạm về trạng thái có thể thuê lại
+        TurbineExpiryGracePeriod[turbineId] = nil
+        BroadcastRentalStatus(turbineId)
+        
+        TriggerClientEvent('windturbine:withdrawSuccess', playerId, amount, true)
+        
+        -- Gửi phone notification
+        local phoneNumber = exports["lb-phone"]:GetEquippedPhoneNumber(playerId)
+        if phoneNumber then
+            local withdrawMsg = string.format("💰 Rút tiền thành công\n\nSố tiền: $%s IC\nThời gian: %s\n\n✅ Trạm đã được reset. Bạn có thể thuê lại bất cứ lúc nào!", 
+                string.format("%d", amount), os.date("%H:%M:%S - %d/%m/%Y"))
+            exports['lb-phone']:SendMessage('Trạm Điện Gió', tostring(phoneNumber), withdrawMsg, nil, nil, nil)
+        end
+    else
+        -- Xử lý rút tiền bình thường
+        Player.Functions.AddMoney('cash', amount)
+        TriggerClientEvent('windturbine:withdrawSuccess', playerId, amount, false)
         
         local phoneNumber = exports["lb-phone"]:GetEquippedPhoneNumber(playerId)
         if phoneNumber then
             local withdrawMsg = string.format("💰 Xác nhận rút tiền\n\nSố tiền: $%s IC\nThời gian: %s\n\nTiền đã được chuyển vào ví của bạn. Cảm ơn bạn đã làm việc chăm chỉ!", string.format("%d", amount), os.date("%H:%M:%S - %d/%m/%Y"))
             exports['lb-phone']:SendMessage('Trạm Điện Gió', tostring(phoneNumber), withdrawMsg, nil, nil, nil)
         end
-    else
-        TriggerClientEvent('QBCore:Notify', playerId, '❌ Lỗi hệ thống!', 'error')
     end
 end)
 
@@ -290,19 +261,6 @@ AddEventHandler('windturbine:rentTurbine', function(turbineId, rentalPrice)
     
     -- Broadcast qua StateBag - TẤT CẢ 500 CLIENT TỰ ĐỘNG NHẬN (KHÔNG CẦN CHECK!)
     BroadcastRentalStatus(turbineId)
-    
-    -- Thông báo thành công
-    local durationText = Config.TestMode and "60 giây" or "7 ngày"
-    if rentalPrice > 0 then
-        TriggerClientEvent('QBCore:Notify', playerId, 
-            string.format('✅ Đã thuê trạm điện gió! Giá: $%s IC | Thời hạn: %s', 
-                string.format("%d", rentalPrice), durationText), 
-            'success', 5000)
-    else
-        TriggerClientEvent('QBCore:Notify', playerId, 
-            string.format('✅ Đã thuê trạm điện gió MIỄN PHÍ! Thời hạn: %s', durationText), 
-            'success', 5000)
-    end
     
     TriggerClientEvent('windturbine:rentSuccess', playerId, {
         citizenid = citizenid,

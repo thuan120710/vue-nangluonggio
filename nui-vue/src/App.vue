@@ -30,6 +30,7 @@
       @stopDuty="handleStopDuty"
       @repair="handleRepair"
       @openEarnings="handleOpenEarnings"
+      @withdraw="handleWithdraw"
     />
     
     <!-- Minigame UI (Bar Type) -->
@@ -173,8 +174,8 @@ export default {
     }
     
     const handleWithdraw = () => {
-      post('withdrawEarnings')
-      currentView.value = 'main'
+      post('withdrawEarnings', { isGracePeriod: false })
+      // Không chuyển view, giữ nguyên ở MainUI
     }
     
     const handleBackToMain = () => {
@@ -186,7 +187,7 @@ export default {
     }
     
     const handleExpiryWithdraw = () => {
-      post('expiryWithdraw')
+      post('withdrawEarnings', { isGracePeriod: true })
     }
     
     // Message handler from client
@@ -390,7 +391,8 @@ export default {
       handleCloseEarnings,
       handleWithdraw,
       handleBackToMain,
-      handleMinigameResult
+      handleMinigameResult,
+      handleExpiryWithdraw
     }
   }
 }
