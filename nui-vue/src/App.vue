@@ -25,11 +25,14 @@
       :maxHours="maxHours"
       :ownerName="ownerName"
       :expiryTime="expiryTime"
+      :currentFuel="currentFuel"
+      :maxFuel="maxFuel"
       @close="handleClose"
       @startDuty="handleStartDuty"
       @stopDuty="handleStopDuty"
       @repair="handleRepair"
       @withdraw="handleWithdraw"
+      @refuel="handleRefuel"
     />
     
     <!-- Minigame UI (Bar Type) -->
@@ -110,6 +113,8 @@ export default {
     const ownerName = ref('N/A')
     const expiryTime = ref(null)
     const withdrawDeadline = ref(null)
+    const currentFuel = ref(84)
+    const maxFuel = ref(84)
     
     const rentalData = ref({
       isRented: false,
@@ -165,6 +170,10 @@ export default {
       post('withdrawEarnings', { isGracePeriod: true })
     }
     
+    const handleRefuel = () => {
+      post('refuelTurbine')
+    }
+    
     // Message handler from client
     const handleMessage = (event) => {
       const data = event.data
@@ -191,6 +200,8 @@ export default {
           if (data.expiryTime !== undefined) expiryTime.value = data.expiryTime
           if (data.workHours !== undefined) workHours.value = data.workHours
           if (data.maxHours !== undefined) maxHours.value = data.maxHours
+          if (data.currentFuel !== undefined) currentFuel.value = data.currentFuel
+          if (data.maxFuel !== undefined) maxFuel.value = data.maxFuel
           break
           
         case 'hideUI':
@@ -267,6 +278,15 @@ export default {
         case 'resetWorkLimit':
           workLimitReached.value = false
           break
+          
+        case 'updateFuel':
+          if (data.currentFuel !== undefined) currentFuel.value = data.currentFuel
+          if (data.maxFuel !== undefined) maxFuel.value = data.maxFuel
+          break
+          
+        case 'outOfFuel':
+          isOnDuty.value = false
+          break
       }
     }
     
@@ -294,6 +314,8 @@ export default {
           maxHours.value = 12
           ownerName.value = 'Test User'
           expiryTime.value = Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60) // 7 days from now
+          currentFuel.value = 42
+          maxFuel.value = 84
         }
       }
       
@@ -347,6 +369,8 @@ export default {
       ownerName,
       expiryTime,
       withdrawDeadline,
+      currentFuel,
+      maxFuel,
       rentalData,
       minigameData,
       currentRound,
@@ -358,7 +382,8 @@ export default {
       handleRepair,
       handleWithdraw,
       handleMinigameResult,
-      handleExpiryWithdraw
+      handleExpiryWithdraw,
+      handleRefuel
     }
   }
 }

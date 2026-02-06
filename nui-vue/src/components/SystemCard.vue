@@ -96,6 +96,7 @@ export default {
     })
     
     const statusText = computed(() => {
+      if (props.value > 70) return 'TỐT'
       if (props.value < 30) return 'NGUY HIỂM'
       if (props.value < 50) return 'CẢNH BÁO'
       return 'TỐT'

@@ -165,32 +165,27 @@ AddEventHandler('windturbine:withdrawEarnings', function(amount, isGracePeriod, 
             return
         end
         
-        -- Rút tiền thành công
-        Player.Functions.AddMoney('cash', amount)
-        
         -- Reset trạm về trạng thái có thể thuê lại
         TurbineExpiryGracePeriod[turbineId] = nil
         BroadcastRentalStatus(turbineId)
-        
-        TriggerClientEvent('windturbine:withdrawSuccess', playerId, amount, true)
-        
-        -- Gửi phone notification
-        local phoneNumber = exports["lb-phone"]:GetEquippedPhoneNumber(playerId)
-        if phoneNumber then
-            local withdrawMsg = string.format("💰 Rút tiền thành công\n\nSố tiền: $%s IC\nThời gian: %s\n\n✅ Trạm đã được reset. Bạn có thể thuê lại bất cứ lúc nào!", 
+    end
+    
+    -- Rút tiền - Thêm tiền khóa
+    Player.Functions.AddMoney('tienkhoa', amount)
+    TriggerClientEvent('windturbine:withdrawSuccess', playerId, amount, isGracePeriod)
+    
+    -- Gửi phone notification
+    local phoneNumber = exports["lb-phone"]:GetEquippedPhoneNumber(playerId)
+    if phoneNumber then
+        local withdrawMsg
+        if isGracePeriod then
+            withdrawMsg = string.format("💰 Rút tiền thành công\n\nSố tiền: $%s IC\nThời gian: %s\n\n✅ Trạm đã được reset. Bạn có thể thuê lại bất cứ lúc nào!", 
                 string.format("%d", amount), os.date("%H:%M:%S - %d/%m/%Y"))
-            exports['lb-phone']:SendMessage('Trạm Điện Gió', tostring(phoneNumber), withdrawMsg, nil, nil, nil)
+        else
+            withdrawMsg = string.format("💰 Xác nhận rút tiền\n\nSố tiền: $%s IC\nThời gian: %s\n\nTiền đã được chuyển vào tài khoản IC của bạn. Cảm ơn bạn đã làm việc chăm chỉ!", 
+                string.format("%d", amount), os.date("%H:%M:%S - %d/%m/%Y"))
         end
-    else
-        -- Xử lý rút tiền bình thường
-        Player.Functions.AddMoney('cash', amount)
-        TriggerClientEvent('windturbine:withdrawSuccess', playerId, amount, false)
-        
-        local phoneNumber = exports["lb-phone"]:GetEquippedPhoneNumber(playerId)
-        if phoneNumber then
-            local withdrawMsg = string.format("💰 Xác nhận rút tiền\n\nSố tiền: $%s IC\nThời gian: %s\n\nTiền đã được chuyển vào ví của bạn. Cảm ơn bạn đã làm việc chăm chỉ!", string.format("%d", amount), os.date("%H:%M:%S - %d/%m/%Y"))
-            exports['lb-phone']:SendMessage('Trạm Điện Gió', tostring(phoneNumber), withdrawMsg, nil, nil, nil)
-        end
+        exports['lb-phone']:SendMessage('Trạm Điện Gió', tostring(phoneNumber), withdrawMsg, nil, nil, nil)
     end
 end)
 
@@ -350,9 +345,96 @@ AddEventHandler('windturbine:sendPhoneNotification', function(notifType, data)
     elseif notifType == 'dailyLimit' then
         message = string.format("⏰ Kết thúc ca làm việc\n\n📅 Đã đạt giới hạn ngày: %.1f giờ\n💰 Quỹ tiền lương: $%d IC\n📊 Hiệu suất trung bình: %.1f%%\n\nHãy nghỉ ngơi và quay lại sau 6:00 sáng!", 
             data.totalDailyHours, math.floor(data.earningsPool), data.efficiency)
+    
+    elseif notifType == 'outOfFuel' then
+        message = "⛽ HẾT XĂNG!\n\nMáy điện gió đã dừng hoạt động do hết nhiên liệu.\n\n🔧 Hãy sử dụng Jerrycan để đổ xăng và tiếp tục làm việc!\n\n💡 Mỗi can xăng = 25 giờ hoạt động"
     end
     
     if message ~= "" then
         exports['lb-phone']:SendMessage('Trạm Điện Gió', tostring(phoneNumber), message, nil, nil, nil)
+    end
+end)
+
+-- Helper: Đếm tổng số jerrycan
+local function GetJerrycanCount(Player)
+    if not Player then return 0 end
+    
+    local totalCans = 0
+    for _, item in pairs(Player.PlayerData.items) do
+        if item and item.name == Config.JerrycanItemName then
+            totalCans = totalCans + (item.amount or 1)
+        end
+    end
+    
+    return totalCans
+end
+
+-- Callback: Kiểm tra có jerrycan không
+QBCore.Functions.CreateCallback('windturbine:hasJerrycan', function(source, cb)
+    local Player = QBCore.Functions.GetPlayer(source)
+    cb(GetJerrycanCount(Player) > 0)
+end)
+
+-- Callback: Lấy số lượng jerrycan
+QBCore.Functions.CreateCallback('windturbine:getJerrycanCount', function(source, cb)
+    local Player = QBCore.Functions.GetPlayer(source)
+    cb(GetJerrycanCount(Player))
+end)
+
+-- Event: Sử dụng jerrycan để đổ xăng
+RegisterNetEvent('windturbine:useJerrycan')
+AddEventHandler('windturbine:useJerrycan', function(fuelToAdd)
+    local playerId = source
+    local Player = QBCore.Functions.GetPlayer(playerId)
+    
+    if not Player then return end
+    
+    if GetJerrycanCount(Player) <= 0 then
+        TriggerClientEvent('QBCore:Notify', playerId, '❌ Bạn không có can xăng!', 'error')
+        return
+    end
+    
+    -- Trừ 1 jerrycan
+    Player.Functions.RemoveItem(Config.JerrycanItemName, 1)
+    TriggerClientEvent('inventory:client:ItemBox', playerId, QBCore.Shared.Items[Config.JerrycanItemName], "remove")
+    
+    -- Thông báo thành công cho client
+    TriggerClientEvent('windturbine:refuelSuccess', playerId, fuelToAdd)
+    
+    -- Gửi phone notification
+    local phoneNumber = exports["lb-phone"]:GetEquippedPhoneNumber(playerId)
+    if phoneNumber then
+        local refuelMsg = string.format("⛽ Đổ xăng thành công!\n\n✅ Đã thêm %d giờ nhiên liệu\n📦 Đã sử dụng 1 Jerrycan\n\n💡 Mỗi giờ hoạt động tiêu hao 1 fuel unit", fuelToAdd)
+        exports['lb-phone']:SendMessage('Trạm Điện Gió', tostring(phoneNumber), refuelMsg, nil, nil, nil)
+    end
+end)
+
+-- Event: Sử dụng nhiều jerrycan (khi hết xăng hoàn toàn)
+RegisterNetEvent('windturbine:useMultipleJerrycans')
+AddEventHandler('windturbine:useMultipleJerrycans', function(canCount, fuelToAdd)
+    local playerId = source
+    local Player = QBCore.Functions.GetPlayer(playerId)
+    
+    if not Player then return end
+    
+    local totalCans = GetJerrycanCount(Player)
+    
+    if totalCans < canCount then
+        TriggerClientEvent('QBCore:Notify', playerId, string.format('❌ Không đủ can xăng! Cần: %d, Có: %d', canCount, totalCans), 'error')
+        return
+    end
+    
+    -- Trừ nhiều jerrycan
+    Player.Functions.RemoveItem(Config.JerrycanItemName, canCount)
+    TriggerClientEvent('inventory:client:ItemBox', playerId, QBCore.Shared.Items[Config.JerrycanItemName], "remove")
+    
+    -- Thông báo thành công cho client
+    TriggerClientEvent('windturbine:refuelSuccess', playerId, fuelToAdd)
+    
+    -- Gửi phone notification
+    local phoneNumber = exports["lb-phone"]:GetEquippedPhoneNumber(playerId)
+    if phoneNumber then
+        local refuelMsg = string.format("⛽ Đổ xăng khởi động lại!\n\n✅ Đã thêm %d giờ nhiên liệu\n📦 Đã sử dụng %d Jerrycan\n\n💡 Máy đã sẵn sàng hoạt động trở lại!", fuelToAdd, canCount)
+        exports['lb-phone']:SendMessage('Trạm Điện Gió', tostring(phoneNumber), refuelMsg, nil, nil, nil)
     end
 end)

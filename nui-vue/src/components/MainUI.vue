@@ -55,10 +55,10 @@
         <div class="stat-item">
           <div class="stat-header">
             <span class="stat-label">XĂNG <img src="/img/i.png" alt="info" class="info-icon-img"></span>
-            <span class="stat-percent red">30%</span>
+            <span class="stat-percent" :class="fuelColorClass">{{ fuelPercent }}%</span>
           </div>
           <div class="stat-bar">
-            <div class="stat-bar-fill red" :style="{ width: '30%' }"></div>
+            <div class="stat-bar-fill" :class="fuelColorClass" :style="{ width: fuelPercent + '%' }"></div>
           </div>
         </div>
 
@@ -66,14 +66,24 @@
         <div class="stat-item status-section">
           <div class="stat-label center">TRẠNG THÁI HỆ THỐNG</div>
           <div class="status-display">
-            <span class="status-dot" :class="{ online: isOnDuty && !isMaintenance, maintenance: isMaintenance }"></span>
-            <span class="status-text" :class="{ 'maintenance-text': isMaintenance }">{{ fullStatusText }}</span>
+            <span class="status-dot" :class="{ online: isOnDuty && !isMaintenance && !isOutOfFuel, maintenance: isMaintenance || isOutOfFuel }"></span>
+            <span class="status-text" :class="{ 'maintenance-text': isMaintenance || isOutOfFuel }">{{ fullStatusText }}</span>
           </div>
         </div>
 
+        <!-- Refuel Button (hiện khi hết xăng) -->
+        <button 
+          v-if="isOutOfFuel && !isOnDuty"
+          class="btn btn-refuel"
+          @click="$emit('refuel')"
+        >
+          <span class="btn-icon">⛽</span>
+          ĐỔ XĂNG
+        </button>
+
         <!-- Start/Stop Button -->
         <button 
-          v-if="!isOnDuty"
+          v-else-if="!isOnDuty"
           class="btn btn-start"
           :class="{ 'disabled-limit': workLimitReached }"
           :disabled="workLimitReached"
@@ -251,9 +261,17 @@ export default {
     expiryTime: {
       type: Number,
       default: null
+    },
+    currentFuel: {
+      type: Number,
+      default: 84
+    },
+    maxFuel: {
+      type: Number,
+      default: 84
     }
   },
-  emits: ['close', 'startDuty', 'stopDuty', 'repair', 'withdraw'],
+  emits: ['close', 'startDuty', 'stopDuty', 'repair', 'withdraw', 'refuel'],
   setup(props, { emit }) {
     const currentTime = ref(Math.floor(Date.now() / 1000))
     
@@ -346,6 +364,9 @@ export default {
         return 'BẢO TRÌ'
       }
       if (!props.isOnDuty) {
+        if (props.currentFuel <= 0) {
+          return 'OFFLINE - HẾT XĂNG'
+        }
         return 'OFFLINE'
       }
       if (isMaintenance.value) {
@@ -359,6 +380,9 @@ export default {
         return 'BẢO TRÌ'
       }
       if (!props.isOnDuty) {
+        if (props.currentFuel <= 0) {
+          return 'OFFLINE - HẾT XĂNG'
+        }
         return 'OFFLINE'
       }
       if (isMaintenance.value) {
@@ -368,6 +392,22 @@ export default {
       const currentHours = (Math.floor(props.workHours * 10) / 10).toFixed(1)
       const maxHoursFormatted = (Math.floor(props.maxHours * 10) / 10).toFixed(1)
       return `ONLINE - ${currentHours} / ${maxHoursFormatted} GIỜ`
+    })
+    
+    const fuelPercent = computed(() => {
+      if (!props.maxFuel || props.maxFuel === 0) return 0
+      return Math.floor((props.currentFuel / props.maxFuel) * 100)
+    })
+    
+    const fuelColorClass = computed(() => {
+      const percent = fuelPercent.value
+      if (percent <= 10) return 'red'
+      if (percent <= 30) return 'orange'
+      return 'green'
+    })
+    
+    const isOutOfFuel = computed(() => {
+      return props.currentFuel <= 0
     })
     
     const formatWorkTime = (hours) => {
@@ -380,6 +420,7 @@ export default {
         playSound('fail')
         return
       }
+      
       playSound('click')
       emit('repair', system)
     }
@@ -396,6 +437,9 @@ export default {
       fullStatusText,
       formatWorkTime,
       handleSystemClick,
+      fuelPercent,
+      fuelColorClass,
+      isOutOfFuel,
       Math
     }
   }

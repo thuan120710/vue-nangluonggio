@@ -49,11 +49,13 @@ if Config.TestMode then
     
     -- Penalty theo thời gian hoạt động (tính bằng PHÚT trong test mode)
     Config.PenaltyRanges = {
-        -- 0-2 phút: Không penalty
+        -- 0-2 phút: Penalty nhẹ
         {
             minHours = 0,
             maxHours = 2/60, -- 2 phút = 0.033 giờ
-            penalties = {}
+            penalties = {
+                {chance = 100, systems = 1, damage = 10}
+            }
         },
         -- 2-4 phút
         {
@@ -92,11 +94,13 @@ else
     
     -- Penalty theo thời gian hoạt động
     Config.PenaltyRanges = {
-        -- 0-2 giờ: Không penalty
+        -- 0-2 giờ: Penalty nhẹ
         {
             minHours = 0,
             maxHours = 2,
-            penalties = {}
+            penalties = {
+                {chance = 100, systems = 1, damage = 10}
+            }
         },
         -- 2-4 giờ
         {
@@ -185,3 +189,19 @@ Config.RepairRewards = {
     good = 10,
     fail = -5
 }
+
+-- ============================================
+-- HỆ THỐNG XĂNG (FUEL)
+-- ============================================
+Config.MaxFuel = 100 -- Tổng nhiên liệu tối đa (84 giờ)
+Config.MinFuelToStart = 100 -- Cần tối thiểu 100 fuel (4 can) để khởi động
+Config.FuelPerJerrycan = 25 -- 1 can xăng = 25 fuel units
+Config.JerrycanItemName = "jerrycan" -- Tên item trong QBCore
+
+if Config.TestMode then
+    -- TEST MODE: Tiêu hao xăng nhanh (mỗi phút = 1 giờ)
+    Config.FuelConsumptionCycle = 600 -- 1 phút = 1 fuel unit
+else
+    -- PRODUCTION: Tiêu hao xăng thực tế
+    Config.FuelConsumptionCycle = 3600000 -- 1 giờ = 1 fuel unit
+end

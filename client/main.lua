@@ -59,10 +59,12 @@ local playerData = {
     earningsPool = 0,
     lastEarning = 0,
     lastPenalty = 0,
+    lastFuelConsumption = 0,
     workStartTime = 0,
     totalWorkHours = 0,
     dailyWorkHours = 0,
-    lastDayReset = ""
+    lastDayReset = "",
+    currentFuel = 0 -- Bắt đầu với 0% xăng, phải đổ 4 can mới hoạt động
 }
 
 -- ============================================
@@ -141,7 +143,9 @@ local function OpenMainUI()
         ownerName = rentalStatus.ownerName or 'N/A',
         expiryTime = rentalStatus.expiryTime,
         workHours = currentWorkHours,
-        maxHours = Config.MaxDailyHours
+        maxHours = Config.MaxDailyHours,
+        currentFuel = playerData.currentFuel,
+        maxFuel = 0
     })
 end
 
@@ -263,15 +267,24 @@ end)
 -- ============================================
 
 -- Tính hiệu suất tổng (trung bình 5 chỉ số)
+-- Nếu hệ thống <= 30% thì coi như 0%
 local function CalculateEfficiency()
     local systems = playerData.systems
-    local total = systems.stability + systems.electric + systems.lubrication + 
-                  systems.blades + systems.safety
+    local total = 0
+    
+    for _, value in pairs(systems) do
+        if value <= 30 then
+            total = total + 0 -- Coi như 0%
+        else
+            total = total + value
+        end
+    end
     
     return total / 5
 end
 
 -- Tính lợi nhuận dựa trên từng chỉ số (mỗi chỉ số = 20% lợi nhuận)
+-- Nếu hệ thống <= 30% thì không sinh tiền (coi như 0%)
 local function CalculateSystemProfit()
     local systems = playerData.systems
     local totalProfit = 0
@@ -279,11 +292,11 @@ local function CalculateSystemProfit()
     for systemName, value in pairs(systems) do
         local systemProfit = Config.BaseSalary * (Config.SystemProfitContribution / 100)
         
-        -- Tính theo % thực tế của hệ thống
-        if value < 30 then
-            systemProfit = 0 -- Dưới 30% không sinh tiền
+        -- Nếu <= 30% thì không sinh tiền
+        if value <= 30 then
+            systemProfit = 0
         else
-            -- Từ 30% trở lên: tính theo tỷ lệ thực tế
+            -- Từ 31% trở lên: tính theo tỷ lệ thực tế
             systemProfit = systemProfit * (value / 100)
         end
         
@@ -293,8 +306,13 @@ local function CalculateSystemProfit()
     return totalProfit
 end
 
--- Kiểm tra điều kiện sinh tiền (nếu 3 chỉ số < 30% => máy ngừng hoạt động)
+-- Kiểm tra điều kiện sinh tiền (nếu 3 chỉ số < 30% hoặc hết xăng => máy ngừng hoạt động)
 local function CanEarnMoney()
+    -- Kiểm tra xăng trước
+    if playerData.currentFuel <= 0 then
+        return false, "OUT_OF_FUEL"
+    end
+    
     local systems = playerData.systems
     local below30 = 0
     
@@ -405,17 +423,17 @@ local function ApplyPenalty()
         safety = "An toàn"
     }
     
-    -- Lọc ra các hệ thống còn > 0%
+    -- Lọc ra các hệ thống còn > 30%
     local availableSystems = {}
     for _, systemName in ipairs(systemNames) do
-        if playerData.systems[systemName] > 0 then
+        if playerData.systems[systemName] > 30 then
             table.insert(availableSystems, systemName)
         end
     end
     
-    -- Nếu không còn hệ thống nào > 0%, không áp dụng penalty
+    -- Nếu không còn hệ thống nào > 30%, không áp dụng penalty
     if #availableSystems == 0 then
-        QBCore.Functions.Notify('⚠️ Tất cả hệ thống đã hỏng hoàn toàn!', 'warning', 3000)
+        QBCore.Functions.Notify('⚠️ Tất cả hệ thống đã ở mức nguy hiểm! Không thể hư hỏng thêm.', 'warning', 3000)
         return
     end
     
@@ -430,6 +448,7 @@ local function ApplyPenalty()
         local systemName = table.remove(availableSystems, randomIndex)
         
         local beforeValue = playerData.systems[systemName]
+        -- Đảm bảo không giảm xuống dưới 0%
         local afterValue = math.max(0, beforeValue - selectedPenalty.damage)
         playerData.systems[systemName] = afterValue
         
@@ -491,6 +510,18 @@ RegisterNUICallback('startDuty', function(data, cb)
         return
     end
     
+    -- Kiểm tra xăng tối thiểu
+    -- Nếu hết xăng hoàn toàn (0 fuel), cần đổ 4 can (100 fuel)
+    -- Nếu còn xăng, chỉ cần > 0 là được
+    if playerData.currentFuel == 0 then
+        QBCore.Functions.Notify(string.format('❌ Hết xăng! Cần đổ %d can xăng  để khởi động lại máy.', math.ceil(Config.MinFuelToStart / Config.FuelPerJerrycan)), 'error', 7000)
+        cb('ok')
+        return
+    elseif playerData.currentFuel < Config.MinFuelToStart and playerData.currentFuel > 0 then
+        -- Nếu còn xăng nhưng chưa đủ 100, vẫn cho chạy (để tiêu hao hết)
+        -- Không block
+    end
+    
     -- Kiểm tra giới hạn thời gian
     local canWork, reason = CheckTimeLimit()
     if not canWork then
@@ -508,6 +539,7 @@ RegisterNUICallback('startDuty', function(data, cb)
     playerData.workStartTime = GetCurrentTime()
     playerData.lastEarning = GetCurrentTime()
     playerData.lastPenalty = GetCurrentTime()
+    playerData.lastFuelConsumption = GetCurrentTime()
     
     isOnDuty = true
     currentSystems = playerData.systems
@@ -563,6 +595,15 @@ RegisterNUICallback('repair', function(data, cb)
     end
     
     if data.system then
+        -- Kiểm tra nếu hệ thống > 70% thì không cho sửa
+        local systemValue = playerData.systems[data.system]
+        if systemValue and systemValue > 70 then
+            QBCore.Functions.Notify('⚠️ Bảo trì bị từ chối: Mức hư hại hiện tại quá thấp. Yêu cầu ≤ 70%.', 'warning', 5000)
+            PlaySound(-1, "CHECKPOINT_MISSED", "HUD_MINI_GAME_SOUNDSET", 0, 0, 1)
+            cb('ok')
+            return
+        end
+        
         OpenMinigame(data.system)
     end
     cb('ok')
@@ -631,6 +672,49 @@ RegisterNUICallback('minigameResult', function(data, cb)
     Wait(300)
     OpenMainUI()
     cb('ok')
+end)
+
+RegisterNUICallback('refuelTurbine', function(data, cb)
+    -- Kiểm tra có jerrycan không
+    QBCore.Functions.TriggerCallback('windturbine:hasJerrycan', function(hasItem)
+        if not hasItem then
+            QBCore.Functions.Notify('❌ Bạn không có can xăng (Jerrycan)!', 'error', 5000)
+            cb('ok')
+            return
+        end
+        
+        -- Kiểm tra xăng đã đầy chưa
+        if playerData.currentFuel >= Config.MaxFuel then
+            QBCore.Functions.Notify('❌ Bình xăng đã đầy!', 'error', 3000)
+            cb('ok')
+            return
+        end
+        
+        -- Nếu đang ở trạng thái hết xăng (0 fuel), cần đổ đủ 4 can
+        if playerData.currentFuel == 0 then
+            -- Kiểm tra số lượng jerrycan
+            QBCore.Functions.TriggerCallback('windturbine:getJerrycanCount', function(count)
+                local cansNeeded = math.ceil(Config.MinFuelToStart / Config.FuelPerJerrycan)
+                
+                if count < cansNeeded then
+                    QBCore.Functions.Notify(string.format('❌ Cần %d can xăng để khởi động lại! (Bạn có: %d can)', cansNeeded, count), 'error', 7000)
+                    cb('ok')
+                    return
+                end
+                
+                -- Đổ đủ 4 can
+                TriggerServerEvent('windturbine:useMultipleJerrycans', cansNeeded, Config.MinFuelToStart)
+                cb('ok')
+            end)
+        else
+            -- Đổ bình thường (1 can)
+            local fuelNeeded = Config.MaxFuel - playerData.currentFuel
+            local fuelToAdd = math.min(Config.FuelPerJerrycan, fuelNeeded)
+            
+            TriggerServerEvent('windturbine:useJerrycan', fuelToAdd)
+            cb('ok')
+        end
+    end)
 end)
 
 RegisterNUICallback('withdrawEarnings', function(data, cb)
@@ -715,6 +799,26 @@ AddEventHandler('windturbine:withdrawSuccess', function(amount, isGracePeriod)
         -- Rút tiền bình thường: Giữ UI mở
         QBCore.Functions.Notify(string.format('💰 Đã rút $%d từ quỹ tiền lương!', amount), 'success')
     end
+end)
+
+RegisterNetEvent('windturbine:refuelSuccess')
+AddEventHandler('windturbine:refuelSuccess', function(fuelAdded)
+    playerData.currentFuel = playerData.currentFuel + fuelAdded
+    
+    -- Cập nhật UI
+    SendNUIMessage({
+        action = 'updateFuel',
+        currentFuel = playerData.currentFuel,
+        maxFuel = Config.MaxFuel
+    })
+    
+    QBCore.Functions.Notify(string.format('⛽ Đã đổ %d giờ xăng! Tổng: %d/%d giờ', fuelAdded, playerData.currentFuel, Config.MaxFuel), 'success', 5000)
+    PlaySound(-1, "PICK_UP", "HUD_FRONTEND_DEFAULT_SOUNDSET", 0, 0, 1)
+    
+    -- Đóng và mở lại UI để cập nhật
+    CloseUI()
+    Wait(300)
+    OpenMainUI()
 end)
 
 -- Thread: Cập nhật thời gian làm việc liên tục (mỗi giây)
@@ -837,6 +941,42 @@ CreateThread(function()
                 -- Áp dụng penalty
                 ApplyPenalty()
                 playerData.lastPenalty = currentTime
+            end
+            
+            -- Tiêu hao xăng mỗi chu kỳ
+            if currentTime - playerData.lastFuelConsumption >= Config.FuelConsumptionCycle then
+                if playerData.currentFuel > 0 then
+                    playerData.currentFuel = playerData.currentFuel - 1
+                    
+                    -- Cập nhật UI
+                    SendNUIMessage({
+                        action = 'updateFuel',
+                        currentFuel = playerData.currentFuel,
+                        maxFuel = Config.MaxFuel
+                    })
+                    
+                    -- Cảnh báo khi sắp hết xăng
+                    if playerData.currentFuel == 10 then
+                        QBCore.Functions.Notify('⚠️ Cảnh báo: Còn 10 giờ xăng!', 'warning', 5000)
+                    elseif playerData.currentFuel == 5 then
+                        QBCore.Functions.Notify('🚨 Khẩn cấp: Còn 5 giờ xăng!', 'error', 5000)
+                    elseif playerData.currentFuel == 0 then
+                        -- Hết xăng -> Tắt máy
+                        playerData.onDuty = false
+                        isOnDuty = false
+                        
+                        QBCore.Functions.Notify('⛽ Hết xăng! Máy đã dừng hoạt động.', 'error', 7000)
+                        
+                        SendNUIMessage({
+                            action = 'outOfFuel'
+                        })
+                        
+                        -- Gửi thông báo qua phone
+                        TriggerServerEvent('windturbine:sendPhoneNotification', 'outOfFuel', {})
+                    end
+                    
+                    playerData.lastFuelConsumption = currentTime
+                end
             end
         end
         
