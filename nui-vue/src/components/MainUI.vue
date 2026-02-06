@@ -411,4 +411,5 @@ export default {
 .close-btn {
     right: 4rem;
 }
+
 </style>

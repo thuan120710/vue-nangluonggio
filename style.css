@@ -281,23 +281,3 @@ img {
   text-transform: uppercase;
 }
 
-/* Responsive Adjustments */
-@media (max-width: 1024px) {
-  .dashboard-content {
-    flex-direction: column;
-    height: auto;
-    padding: 2.5rem 0;
-  }
-
-  .header-info-bar {
-    display: none;
-  }
-
-  .header-title {
-    position: static;
-    transform: none;
-    font-size: 1.125rem;
-    text-align: center;
-    flex: 1;
-  }
-}

@@ -12,29 +12,24 @@
 }
 
 html {
-    font-size: 16px; /* Base: 1rem = 16px */
+  font-size: 0.833vw;
+  /* Default cho màn hình thông thường */
 }
 
-/* Responsive font sizes - Scale toàn bộ UI theo màn hình */
-@media (max-width: 1920px) {
-    html { font-size: 16px; }
+/* Màn hình ultrawide 21:9 - sử dụng vh */
+@media screen and (min-aspect-ratio: 21/9) {
+  html {
+    font-size: 1.48148148148vh;
+  }
 }
 
-@media (max-width: 1600px) {
-    html { font-size: 14px; }
+/* Màn hình rất rộng hơn 21:9 - vẫn dùng vh */
+@media screen and (min-aspect-ratio: 2.5/1) {
+  html {
+    font-size: 1.48148148148vh;
+  }
 }
 
-@media (max-width: 1366px) {
-    html { font-size: 13px; }
-}
-
-@media (max-width: 1280px) {
-    html { font-size: 12px; }
-}
-
-@media (max-width: 1024px) {
-    html { font-size: 11px; }
-}
 
 body {
     font-family: 'Goldman', sans-serif;
@@ -45,12 +40,14 @@ body {
 }
 
 .main-wrapper {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
+    display: flex;
+width: 120rem;
+height: 67.5rem;
+flex-direction: column;
+justify-content: center;
+align-items: center;
+flex-shrink: 0;
+    
 }
 
 .background-image {
@@ -64,47 +61,15 @@ body {
 }
 
 .container {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%) scale(1.09);
-    background: transparent;
-    min-width: 75rem;
-    max-width: 93.75rem;
-    width: 100%;
-    height: 60%;
-    overflow: hidden;
-    z-index: 1;
+    display: flex;
+width: 71.625rem;
+height: 42.9375rem;
+flex-direction: column;
+align-items: center;
+flex-shrink: 0;
 }
 
-/* Responsive scaling - Không cần scale vì đã dùng rem */
-@media (max-width: 1600px) {
-    .container {
-        transform: translate(-50%, -50%);
-        min-width: 70rem;
-    }
-}
 
-@media (max-width: 1366px) {
-    .container {
-        transform: translate(-50%, -50%);
-        min-width: 65rem;
-    }
-}
-
-@media (max-width: 1280px) {
-    .container {
-        transform: translate(-50%, -50%);
-        min-width: 60rem;
-    }
-}
-
-@media (max-width: 1024px) {
-    .container {
-        transform: translate(-50%, -50%);
-        min-width: 55rem;
-    }
-}
 
 .hidden {
     display: none !important;
@@ -121,13 +86,11 @@ body {
 
 /* Header */
 .header {
-    background: transparent;
-    padding: 1.875rem 12rem;
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    position: relative;
-    margin-top: 0.625rem;
+padding: 0.625rem;
+justify-content: space-between;
+align-items: center;
+align-self: stretch;
 }
 
 .header-logo {
