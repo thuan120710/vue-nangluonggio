@@ -1,7 +1,7 @@
 <template>
   <div class="main-wrapper">
-    <div class="background-image"></div>
     <div class="container">
+      <div class="background-image"></div>
       <div class="bg-grid"></div>
       
       <!-- Header -->
@@ -218,7 +218,7 @@ export default {
 
 /* Rental UI Styles */
 .rental-content-wrapper {
-    padding: 6.125rem 5.25rem;
+    padding: 5.5rem 5.5rem;
     display: flex;
     gap: 3.125rem;
     align-items: flex-start;

@@ -1,7 +1,7 @@
 <template>
   <div class="main-wrapper">
-    <div class="background-image"></div>
     <div class="container">
+    <div class="background-image"></div>
     <div class="bg-grid"></div>
     <div class="header">
       <div class="header-left">

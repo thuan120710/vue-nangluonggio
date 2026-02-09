@@ -79,7 +79,7 @@
 </template>
 
 <script>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import RentalUI from './components/RentalUI.vue'
 import MainUI from './components/MainUI.vue'
 import MinigameUI from './components/MinigameUI.vue'
@@ -101,6 +101,36 @@ export default {
     ExpiryWithdrawUI
   },
   setup() {
+    // Responsive scaling system - Scale toàn bộ UI theo tỷ lệ màn hình
+    const updateScale = () => {
+      const designWidth = 1920  // Base design cho 1920x1080
+      const designHeight = 1080
+      
+      const viewportWidth = window.innerWidth
+      const viewportHeight = window.innerHeight
+      
+      // Tính scale theo cả width và height
+      const scaleX = viewportWidth / designWidth
+      const scaleY = viewportHeight / designHeight
+      const scaleRatio = Math.min(scaleX, scaleY)
+      
+      // Base scale cho 1920x1080 là 0.82
+      // Khi lên màn lớn hơn (2560x1440), tăng thêm 1% để UI to hơn
+      let baseScale = 0.82
+      if (scaleRatio > 1.0) {
+        // Màn lớn hơn 1920x1080 -> tăng baseScale thêm 1%
+        baseScale = 0.82 * 1.0
+      }
+      
+      const scale = scaleRatio * baseScale
+      
+      // Apply scale to CSS variable
+      document.documentElement.style.setProperty('--ui-scale', scale.toFixed(4))
+      
+      // Debug log
+      console.log(`Viewport: ${viewportWidth}x${viewportHeight}, Scale: ${scale.toFixed(4)}`)
+    }
+    
     const currentView = ref('hidden')
     const currentSystems = ref({})
     const currentEfficiency = ref(0)
@@ -352,8 +382,16 @@ export default {
     }
     
     onMounted(() => {
+      updateScale()
+      window.addEventListener('resize', updateScale)
       window.addEventListener('message', handleMessage)
       window.addEventListener('keydown', handleKeyPress)
+    })
+    
+    onUnmounted(() => {
+      window.removeEventListener('resize', updateScale)
+      window.removeEventListener('message', handleMessage)
+      window.removeEventListener('keydown', handleKeyPress)
     })
     
     return {

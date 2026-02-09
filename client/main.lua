@@ -815,8 +815,8 @@ AddEventHandler('windturbine:refuelSuccess', function(fuelAdded)
     QBCore.Functions.Notify(string.format('⛽ Đã đổ %d giờ xăng! Tổng: %d/%d giờ', fuelAdded, playerData.currentFuel, Config.MaxFuel), 'success', 5000)
     PlaySound(-1, "PICK_UP", "HUD_FRONTEND_DEFAULT_SOUNDSET", 0, 0, 1)
     
-    -- Đóng và mở lại UI để cập nhật
-    CloseUI()
+    -- Luôn mở UI để hiển thị thanh bar xăng đã đầy
+    -- Không cần đóng trước vì OpenMainUI sẽ tự động cập nhật
     Wait(300)
     OpenMainUI()
 end)
