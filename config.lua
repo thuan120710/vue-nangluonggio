@@ -14,7 +14,7 @@ Config.RentalPrice = 0 -- MIỄN PHÍ để test
 
 if Config.TestMode then
     -- TEST MODE: Expiry nhanh để test
-    Config.RentalDuration = 1200 -- 60 giây = 1 phút (thay vì 7 ngày)
+    Config.RentalDuration = 180 -- 60 giây = 1 phút (thay vì 7 ngày)
     Config.GracePeriod = 300 -- 30 giây (thay vì 4 giờ)
 else
     -- PRODUCTION: Thời gian thực
@@ -22,8 +22,37 @@ else
     Config.GracePeriod = 14400 -- 4 giờ (giây) - 14400 seconds = 4 hours
 end
 
--- Vị trí trạm điện gió
-Config.TurbineLocation = vector4(2318.64, 1608.59, 57.94, 92.39)
+-- Vị trí các trạm điện gió (hỗ trợ nhiều trạm)
+Config.TurbineLocations = {
+    {
+        id = "turbine_1",
+        coords = vector4(2318.64, 1608.59, 57.94, 92.39),
+        name = "Trạm Điện Gió #1"
+    },
+    {
+        id = "turbine_2",
+        coords = vector4(2358.94, 1507.47, 54.32, 352.55),
+        name = "Trạm Điện Gió #2"
+    },
+    {
+        id = "turbine_3",
+        coords = vector4(2405.01, 1421.54, 46.55, 354.74),
+        name = "Trạm Điện Gió #3"
+    }, 
+    {
+        id = "turbine_4",
+        coords = vector4(2320.06, 1448.29, 63.24, 214.53),
+        name = "Trạm Điện Gió #4"
+    },
+    {
+        id = "turbine_5",
+        coords = vector4(2359.78, 1390.92, 58.77, 163.44),
+        name = "Trạm Điện Gió #5"
+    },   
+}
+
+-- Giữ lại để tương thích ngược (sử dụng trạm đầu tiên)
+Config.TurbineLocation = Config.TurbineLocations[1].coords
 
 -- ============================================
 -- HỆ THỐNG LỢI NHUẬN

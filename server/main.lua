@@ -15,14 +15,16 @@ local TurbineExpiryGracePeriod = {} -- Lưu thời gian grace period (4 giờ đ
 -- Khởi tạo: Reset GlobalState khi script start
 CreateThread(function()
     -- Reset tất cả trạm về trạng thái chưa thuê
-    GlobalState['turbine_turbine_1'] = {
-        isRented = false,
-        ownerName = nil,
-        citizenid = nil,
-        expiryTime = nil,
-        withdrawDeadline = nil,
-        isGracePeriod = false
-    }
+    for _, turbineData in ipairs(Config.TurbineLocations) do
+        GlobalState['turbine_' .. turbineData.id] = {
+            isRented = false,
+            ownerName = nil,
+            citizenid = nil,
+            expiryTime = nil,
+            withdrawDeadline = nil,
+            isGracePeriod = false
+        }
+    end
 end)
 
 -- Helper: Broadcast rental status qua StateBag (tất cả client tự động nhận - KHÔNG CẦN CHECK LIÊN TỤC!)
@@ -201,6 +203,30 @@ AddEventHandler('windturbine:rentTurbine', function(turbineId, rentalPrice)
         return
     end
     
+    local citizenid = Player.PlayerData.citizenid
+    
+    -- Kiểm tra xem player đã thuê trạm nào chưa
+    for tId, rentalData in pairs(TurbineRentals) do
+        if rentalData.citizenid == citizenid then
+            TriggerClientEvent('QBCore:Notify', playerId, 
+                '❌ Bạn đã thuê một trạm khác rồi! Không thể thuê nhiều trạm cùng lúc.', 
+                'error', 5000)
+            TriggerClientEvent('windturbine:rentFailed', playerId)
+            return
+        end
+    end
+    
+    -- Kiểm tra xem player có đang trong grace period của trạm nào không
+    for tId, graceData in pairs(TurbineExpiryGracePeriod) do
+        if graceData.citizenid == citizenid then
+            TriggerClientEvent('QBCore:Notify', playerId, 
+                '❌ Bạn cần rút tiền từ trạm cũ trước khi thuê trạm mới!', 
+                'error', 5000)
+            TriggerClientEvent('windturbine:rentFailed', playerId)
+            return
+        end
+    end
+    
     -- Kiểm tra trạm đã được thuê chưa
     CheckRentalExpiry(turbineId)
     if TurbineRentals[turbineId] then
@@ -238,7 +264,6 @@ AddEventHandler('windturbine:rentTurbine', function(turbineId, rentalPrice)
     end
     
     -- Lấy thông tin player
-    local citizenid = Player.PlayerData.citizenid
     local ownerName = Player.PlayerData.charinfo.firstname .. ' ' .. Player.PlayerData.charinfo.lastname
     
     -- Lưu rental data ở server

@@ -15,7 +15,8 @@ local turbineSoundId = -1
 local lastNotifyTime = 0 -- Chống spam notify
 
 -- Dữ liệu thuê trạm (StateBag tự động đồng bộ - KHÔNG CẦN CHECK!)
-local turbineId = "turbine_1"
+local turbineId = nil -- Sẽ được set tự động khi gần trạm
+local currentTurbineData = nil -- Lưu thông tin trạm hiện tại
 local rentalStatus = {
     isRented = false,
     isOwner = false,
@@ -77,10 +78,19 @@ local function CloseUI()
     SendNUIMessage({
         action = 'hideUI'
     })
+    -- Hiện lại HUD khi đóng UI
+    if exports['f17-hudv2'] and exports['f17-hudv2'].toggleHud then
+        exports['f17-hudv2']:toggleHud(true)
+    end
 end
 
 -- Mở UI thuê trạm (Định nghĩa TRƯỚC OpenMainUI)
 local function OpenRentalUI()
+    -- Ẩn HUD khi mở UI
+    if exports['f17-hudv2'] and exports['f17-hudv2'].toggleHud then
+        exports['f17-hudv2']:toggleHud(false)
+    end
+    
     SetNuiFocus(true, true)
     SendNUIMessage({
         action = 'showRentalUI',
@@ -94,6 +104,11 @@ end
 
 -- Mở UI rút tiền khi hết hạn (grace period)
 local function OpenExpiryWithdrawUI()
+    -- Ẩn HUD khi mở UI
+    if exports['f17-hudv2'] and exports['f17-hudv2'].toggleHud then
+        exports['f17-hudv2']:toggleHud(false)
+    end
+    
     SetNuiFocus(true, true)
     SendNUIMessage({
         action = 'showExpiryWithdrawUI',
@@ -126,6 +141,11 @@ local function OpenMainUI()
         return
     end
     
+    -- Ẩn HUD khi mở UI
+    if exports['f17-hudv2'] and exports['f17-hudv2'].toggleHud then
+        exports['f17-hudv2']:toggleHud(false)
+    end
+    
     -- Tính thời gian làm việc hiện tại
     local currentWorkHours = 0
     if playerData.onDuty and playerData.workStartTime > 0 then
@@ -145,7 +165,7 @@ local function OpenMainUI()
         workHours = currentWorkHours,
         maxHours = Config.MaxDailyHours,
         currentFuel = playerData.currentFuel,
-        maxFuel = 0
+        maxFuel = Config.MaxFuel
     })
 end
 
@@ -153,6 +173,11 @@ end
 local function OpenMinigame(system)
     local settings = Config.MinigameSettings[system]
     if not settings then return end
+    
+    -- Ẩn HUD khi mở minigame
+    if exports['f17-hudv2'] and exports['f17-hudv2'].toggleHud then
+        exports['f17-hudv2']:toggleHud(false)
+    end
     
     SetNuiFocus(true, true)
     SendNUIMessage({
@@ -185,81 +210,6 @@ CreateThread(function()
         isGracePeriod = false,
         rentalPrice = Config.RentalPrice
     }
-    
-    -- Lắng nghe StateBag - TỰ ĐỘNG CẬP NHẬT KHI CÓ THAY ĐỔI (KHÔNG CẦN CHECK!)
-    AddStateBagChangeHandler('turbine_' .. turbineId, 'global', function(bagName, key, value)
-        local wasGracePeriod = rentalStatus.isGracePeriod
-        local wasOwner = rentalStatus.isOwner
-        
-        if value then
-            local Player = QBCore.Functions.GetPlayerData()
-            local isOwner = (value.isRented and Player.citizenid == value.citizenid) or 
-                           (value.isGracePeriod and Player.citizenid == value.citizenid)
-            
-            local newIsGracePeriod = value.isGracePeriod or false
-            
-            rentalStatus.isRented = value.isRented
-            rentalStatus.isOwner = isOwner
-            rentalStatus.ownerName = value.ownerName
-            rentalStatus.expiryTime = value.expiryTime
-            rentalStatus.withdrawDeadline = value.withdrawDeadline
-            rentalStatus.isGracePeriod = newIsGracePeriod
-            
-            -- Nếu chuyển sang grace period và đang là owner → Tắt duty, đóng UI, thông báo
-            if not wasGracePeriod and newIsGracePeriod and isOwner then
-                -- Tắt duty ngay lập tức (KHÔNG cần thread riêng)
-                if playerData.onDuty then
-                    local workDuration = (GetCurrentTime() - playerData.workStartTime) / 1000 / 3600
-                    playerData.dailyWorkHours = playerData.dailyWorkHours + workDuration
-                    playerData.onDuty = false
-                    isOnDuty = false
-                end
-                
-                -- Đóng UI ngay lập tức
-                SetNuiFocus(false, false)
-                SendNUIMessage({
-                    action = 'hideUI'
-                })
-                
-                -- Thông báo cho người chơi
-                QBCore.Functions.Notify('⏰ Thời hạn thuê đã hết! Bạn có 4 giờ để rút tiền.', 'error', 7000)
-            end
-        else
-            -- Server reset hoặc trạm hết hạn → Reset client
-            rentalStatus.isRented = false
-            rentalStatus.isOwner = false
-            rentalStatus.ownerName = nil
-            rentalStatus.expiryTime = nil
-            rentalStatus.withdrawDeadline = nil
-            rentalStatus.isGracePeriod = false
-            
-            -- Đóng UI nếu đang mở
-            if wasOwner then
-                SetNuiFocus(false, false)
-                SendNUIMessage({
-                    action = 'hideUI'
-                })
-            end
-        end
-    end)
-    
-    -- Load rental status ban đầu
-    local initialState = GlobalState['turbine_' .. turbineId]
-    if initialState and initialState.isRented then
-        local Player = QBCore.Functions.GetPlayerData()
-        local isOwner = initialState.isRented and Player.citizenid == initialState.citizenid
-        
-        rentalStatus.isRented = initialState.isRented
-        rentalStatus.isOwner = isOwner
-        rentalStatus.ownerName = initialState.ownerName
-        rentalStatus.expiryTime = initialState.expiryTime
-    else
-        -- Không có data từ server → Reset về trạng thái chưa thuê
-        rentalStatus.isRented = false
-        rentalStatus.isOwner = false
-        rentalStatus.ownerName = nil
-        rentalStatus.expiryTime = nil
-    end
 end)
 
 -- ============================================
@@ -555,6 +505,11 @@ RegisterNUICallback('startDuty', function(data, cb)
         workHours = 0,
         maxHours = Config.MaxDailyHours
     })
+    SendNUIMessage({
+        action = 'updateFuel',
+        currentFuel = playerData.currentFuel,
+        maxFuel = Config.MaxFuel
+    })
     
     -- Update UI (systems, efficiency, earningRate)
     UpdateUI()
@@ -781,22 +736,49 @@ end)
 
 RegisterNetEvent('windturbine:withdrawSuccess')
 AddEventHandler('windturbine:withdrawSuccess', function(amount, isGracePeriod)
-    -- Reset player data
-    playerData.earningsPool = 0
-    currentEarnings = 0
-    
-    SendNUIMessage({
-        action = 'updateEarnings',
-        earnings = 0
-    })
-    
     -- Xử lý theo loại rút tiền
     if isGracePeriod then
-        -- Rút tiền grace period: Đóng UI
+        -- Rút tiền grace period: Reset TOÀN BỘ dữ liệu player
+        playerData = {
+            onDuty = false,
+            systems = {
+                stability = Config.InitialSystemValue,
+                electric = Config.InitialSystemValue,
+                lubrication = Config.InitialSystemValue,
+                blades = Config.InitialSystemValue,
+                safety = Config.InitialSystemValue
+            },
+            earningsPool = 0,
+            lastEarning = 0,
+            lastPenalty = 0,
+            lastFuelConsumption = 0,
+            workStartTime = 0,
+            totalWorkHours = 0,
+            dailyWorkHours = 0,
+            lastDayReset = GetCurrentDay(),
+            currentFuel = 0
+        }
+        
+        -- Reset các biến global
+        isOnDuty = false
+        currentSystems = playerData.systems
+        currentEfficiency = 0
+        currentEarnings = 0
+        
+        -- Đóng UI
         CloseUI()
         QBCore.Functions.Notify('✅ Đã rút tiền thành công! Trạm đã được reset.', 'success', 5000)
     else
-        -- Rút tiền bình thường: Giữ UI mở
+        -- Rút tiền bình thường: Chỉ reset earnings
+        playerData.earningsPool = 0
+        currentEarnings = 0
+        
+        SendNUIMessage({
+            action = 'updateEarnings',
+            earnings = 0
+        })
+        
+        -- Giữ UI mở
         QBCore.Functions.Notify(string.format('💰 Đã rút $%d từ quỹ tiền lương!', amount), 'success')
     end
 end)
@@ -805,18 +787,18 @@ RegisterNetEvent('windturbine:refuelSuccess')
 AddEventHandler('windturbine:refuelSuccess', function(fuelAdded)
     playerData.currentFuel = playerData.currentFuel + fuelAdded
     
-    -- Cập nhật UI
+    QBCore.Functions.Notify(string.format('⛽ Đã đổ %d giờ xăng! Tổng: %d/%d giờ', fuelAdded, playerData.currentFuel, Config.MaxFuel), 'success', 5000)
+    PlaySound(-1, "PICK_UP", "HUD_FRONTEND_DEFAULT_SOUNDSET", 0, 0, 1)
+    
+    -- Cập nhật UI ngay lập tức với giá trị xăng mới
     SendNUIMessage({
         action = 'updateFuel',
         currentFuel = playerData.currentFuel,
         maxFuel = Config.MaxFuel
     })
     
-    QBCore.Functions.Notify(string.format('⛽ Đã đổ %d giờ xăng! Tổng: %d/%d giờ', fuelAdded, playerData.currentFuel, Config.MaxFuel), 'success', 5000)
-    PlaySound(-1, "PICK_UP", "HUD_FRONTEND_DEFAULT_SOUNDSET", 0, 0, 1)
-    
-    -- Luôn mở UI để hiển thị thanh bar xăng đã đầy
-    -- Không cần đóng trước vì OpenMainUI sẽ tự động cập nhật
+    -- Nếu UI đang mở, refresh lại để hiển thị bar xăng đầy
+    -- Nếu UI chưa mở, mở UI để người chơi thấy kết quả
     Wait(300)
     OpenMainUI()
 end)
@@ -984,38 +966,36 @@ CreateThread(function()
     end
 end)
 
--- Thread: Kiểm tra khoảng cách (KHÔNG CẦN CHECK RENTAL NỮA - STATEBAG TỰ ĐỘNG!)
+-- Thread: Kiểm tra khoảng cách (hỗ trợ nhiều trạm)
 CreateThread(function()
     local lastWarningTime = 0
     
     while true do
         Wait(1000)
         
-        local playerPed = PlayerPedId()
-        local playerCoords = GetEntityCoords(playerPed)
-        local turbineCoords = Config.TurbineLocation
-        local distance = math.sqrt(
-            math.pow(playerCoords.x - turbineCoords.x, 2) +
-            math.pow(playerCoords.y - turbineCoords.y, 2) +
-            math.pow(playerCoords.z - turbineCoords.z, 2)
-        )
-        
-        isNearTurbine = distance < 5.0
-        
-        -- Cảnh báo khi rời xa trong khi đang làm việc
-        if isOnDuty and distance > 50.0 then
-            local currentTime = GetGameTimer()
-            if currentTime - lastWarningTime > 30000 then
-                QBCore.Functions.Notify('⚠️ Bạn đang rời xa cối xay gió! Ca làm việc vẫn tiếp tục.', 'warning', 5000)
-                lastWarningTime = currentTime
+        if isOnDuty and currentTurbineData then
+            local playerPed = PlayerPedId()
+            local playerCoords = GetEntityCoords(playerPed)
+            local turbineCoords = currentTurbineData.coords
+            local distance = #(playerCoords - vector3(turbineCoords.x, turbineCoords.y, turbineCoords.z))
+            
+            isNearTurbine = distance < 5.0
+            
+            -- Cảnh báo khi rời xa trong khi đang làm việc
+            if distance > 50.0 then
+                local currentTime = GetGameTimer()
+                if currentTime - lastWarningTime > 30000 then
+                    QBCore.Functions.Notify('⚠️ Bạn đang rời xa cối xay gió! Ca làm việc vẫn tiếp tục.', 'warning', 5000)
+                    lastWarningTime = currentTime
+                end
             end
         end
     end
 end)
 
-local turbineObject = nil
+local turbineObjects = {}
 
--- Hàm khởi tạo Object (Chỉ chạy 1 lần hoặc khi cần thiết)
+-- Hàm khởi tạo Objects cho TẤT CẢ các trạm
 CreateThread(function()
     local modelHash = GetHashKey("f17_bangdieukhiendiengio")
     
@@ -1025,48 +1005,146 @@ CreateThread(function()
         Wait(1)
     end
 
-    -- Tạo Object tại vị trí Config (Đặt z - 1.0 hoặc tùy chỉnh để nó chạm đất)
-    turbineObject = CreateObject(modelHash, Config.TurbineLocation.x, Config.TurbineLocation.y, Config.TurbineLocation.z - 1.0, false, false, false)
-    SetEntityHeading(turbineObject, Config.TurbineLocation.w or 0.0) -- Thêm Heading trong Config nếu muốn xoay bảng
-    FreezeEntityPosition(turbineObject, true) -- Giữ bảng cố định, không bị tông đổ
-    SetEntityInvincible(turbineObject, true) -- Không bị phá hủy
-end)
-
--- Vòng lặp xử lý logic
-CreateThread(function()
-    while true do
-        local sleep = 1000 -- Tối ưu hiệu năng khi ở xa
-        local playerPed = PlayerPedId()
-        local playerCoords = GetEntityCoords(playerPed)
-        local dist = #(playerCoords - vector3(Config.TurbineLocation.x, Config.TurbineLocation.y, Config.TurbineLocation.z))
-
-        if dist < 3.0 then -- Chỉ xử lý khi ở gần bảng điều khiển trong bán kính 3m
-            sleep = 0 
-            
-            local displayText = ""
-            if not rentalStatus.isRented then
-                displayText = "[~g~E~w~] Thuê trạm điện gió"
-            elseif rentalStatus.isOwner then
-                if not isOnDuty then
-                    displayText = "[~g~E~w~] Bắt đầu ca làm việc"
-                else
-                    displayText = "[~g~E~w~] Mở bảng điều khiển"
-                end
-            else
-                displayText = "~r~Trạm đã có chủ sở hữu"
-            end
-
-            -- Vẽ chữ 3D ngay trên mặt bảng điều khiển
-            DrawText3D(Config.TurbineLocation.x, Config.TurbineLocation.y, Config.TurbineLocation.z + 0.5, displayText)
-
-            -- Kiểm tra bấm phím E
-            if IsControlJustReleased(0, 38) then 
-                OpenMainUI()
-            end
-        end
-        Wait(sleep)
+    -- Tạo Object cho mỗi trạm
+    for _, turbineData in ipairs(Config.TurbineLocations) do
+        local coords = turbineData.coords
+        local obj = CreateObject(modelHash, coords.x, coords.y, coords.z - 1.0, false, false, false)
+        SetEntityHeading(obj, coords.w or 0.0)
+        FreezeEntityPosition(obj, true)
+        SetEntityInvincible(obj, true)
+        turbineObjects[turbineData.id] = obj
     end
 end)
+
+-- Vòng lặp xử lý logic cho TỪNG trạm (mỗi trạm độc lập)
+for _, turbineData in ipairs(Config.TurbineLocations) do
+    CreateThread(function()
+        local tId = turbineData.id
+        local coords = turbineData.coords
+        local tName = turbineData.name
+        
+        -- Rental status riêng cho trạm này
+        local localRentalStatus = {
+            isRented = false,
+            isOwner = false,
+            ownerName = nil,
+            expiryTime = nil,
+            withdrawDeadline = nil,
+            isGracePeriod = false
+        }
+        
+        -- Load rental status ban đầu
+        local initialState = GlobalState['turbine_' .. tId]
+        if initialState and initialState.isRented then
+            local Player = QBCore.Functions.GetPlayerData()
+            local isOwner = initialState.isRented and Player.citizenid == initialState.citizenid
+            
+            localRentalStatus.isRented = initialState.isRented
+            localRentalStatus.isOwner = isOwner
+            localRentalStatus.ownerName = initialState.ownerName
+            localRentalStatus.expiryTime = initialState.expiryTime
+            localRentalStatus.withdrawDeadline = initialState.withdrawDeadline
+            localRentalStatus.isGracePeriod = initialState.isGracePeriod or false
+        end
+        
+        -- StateBag handler cho trạm này
+        AddStateBagChangeHandler('turbine_' .. tId, 'global', function(bagName, key, value)
+            local wasGracePeriod = localRentalStatus.isGracePeriod
+            local wasOwner = localRentalStatus.isOwner
+            
+            if value then
+                local Player = QBCore.Functions.GetPlayerData()
+                local isOwner = (value.isRented and Player.citizenid == value.citizenid) or 
+                               (value.isGracePeriod and Player.citizenid == value.citizenid)
+                
+                local newIsGracePeriod = value.isGracePeriod or false
+                
+                localRentalStatus.isRented = value.isRented
+                localRentalStatus.isOwner = isOwner
+                localRentalStatus.ownerName = value.ownerName
+                localRentalStatus.expiryTime = value.expiryTime
+                localRentalStatus.withdrawDeadline = value.withdrawDeadline
+                localRentalStatus.isGracePeriod = newIsGracePeriod
+                
+                -- Nếu đang làm việc ở trạm này và chuyển sang grace period
+                if turbineId == tId and not wasGracePeriod and newIsGracePeriod and isOwner then
+                    if playerData.onDuty then
+                        local workDuration = (GetCurrentTime() - playerData.workStartTime) / 1000 / 3600
+                        playerData.dailyWorkHours = playerData.dailyWorkHours + workDuration
+                        playerData.onDuty = false
+                        isOnDuty = false
+                    end
+                    
+                    SetNuiFocus(false, false)
+                    SendNUIMessage({
+                        action = 'hideUI'
+                    })
+                    
+                    QBCore.Functions.Notify('⏰ Thời hạn thuê đã hết! Bạn có 4 giờ để rút tiền.', 'error', 7000)
+                end
+                
+                -- Cập nhật rentalStatus global nếu đây là trạm hiện tại
+                if turbineId == tId then
+                    rentalStatus = localRentalStatus
+                end
+            else
+                localRentalStatus.isRented = false
+                localRentalStatus.isOwner = false
+                localRentalStatus.ownerName = nil
+                localRentalStatus.expiryTime = nil
+                localRentalStatus.withdrawDeadline = nil
+                localRentalStatus.isGracePeriod = false
+                
+                if turbineId == tId and wasOwner then
+                    SetNuiFocus(false, false)
+                    SendNUIMessage({
+                        action = 'hideUI'
+                    })
+                    rentalStatus = localRentalStatus
+                end
+            end
+        end)
+        
+        while true do
+            local sleep = 1000
+            local playerPed = PlayerPedId()
+            local playerCoords = GetEntityCoords(playerPed)
+            local dist = #(playerCoords - vector3(coords.x, coords.y, coords.z))
+
+            if dist < 3.0 then
+                sleep = 0
+                
+                local displayText = ""
+                
+                if not localRentalStatus.isRented then
+                    displayText = string.format("[~g~E~w~] Thuê %s", tName)
+                elseif localRentalStatus.isOwner then
+                    if not isOnDuty then
+                        displayText = "[~g~E~w~] Bắt đầu ca làm việc"
+                    else
+                        displayText = "[~g~E~w~] Mở bảng điều khiển"
+                    end
+                else
+                    displayText = "~r~Trạm đã có chủ sở hữu"
+                end
+
+                -- Vẽ chữ 3D
+                DrawText3D(coords.x, coords.y, coords.z + 0.5, displayText)
+
+                -- Kiểm tra bấm phím E
+                if IsControlJustReleased(0, 38) then
+                    -- Set turbineId và rentalStatus cho trạm này
+                    turbineId = tId
+                    currentTurbineData = turbineData
+                    rentalStatus = localRentalStatus
+                    OpenMainUI()
+                end
+            end
+            
+            Wait(sleep)
+        end
+    end)
+end
 
 -- Helper: Draw 3D Text
 function DrawText3D(x, y, z, text)
