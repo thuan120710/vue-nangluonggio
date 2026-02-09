@@ -23,8 +23,7 @@ local rentalStatus = {
     ownerName = nil,
     expiryTime = nil,
     withdrawDeadline = nil,
-    isGracePeriod = false,
-    rentalPrice = 0
+    isGracePeriod = false
 }
 
 
@@ -98,7 +97,7 @@ local function OpenRentalUI()
         isOwner = rentalStatus.isOwner,
         ownerName = rentalStatus.ownerName,
         expiryTime = rentalStatus.expiryTime,
-        rentalPrice = rentalStatus.rentalPrice
+        rentalPrice = Config.RentalPrice
     })
 end
 
@@ -207,8 +206,7 @@ CreateThread(function()
         ownerName = nil,
         expiryTime = nil,
         withdrawDeadline = nil,
-        isGracePeriod = false,
-        rentalPrice = Config.RentalPrice
+        isGracePeriod = false
     }
 end)
 
@@ -801,6 +799,40 @@ AddEventHandler('windturbine:refuelSuccess', function(fuelAdded)
     -- Nếu UI chưa mở, mở UI để người chơi thấy kết quả
     Wait(300)
     OpenMainUI()
+end)
+
+-- Event: Grace period hết hạn - Reset toàn bộ data
+RegisterNetEvent('windturbine:gracePeriodExpired')
+AddEventHandler('windturbine:gracePeriodExpired', function()
+    -- Reset TOÀN BỘ dữ liệu player
+    playerData = {
+        onDuty = false,
+        systems = {
+            stability = Config.InitialSystemValue,
+            electric = Config.InitialSystemValue,
+            lubrication = Config.InitialSystemValue,
+            blades = Config.InitialSystemValue,
+            safety = Config.InitialSystemValue
+        },
+        earningsPool = 0,
+        lastEarning = 0,
+        lastPenalty = 0,
+        lastFuelConsumption = 0,
+        workStartTime = 0,
+        totalWorkHours = 0,
+        dailyWorkHours = 0,
+        lastDayReset = GetCurrentDay(),
+        currentFuel = 0
+    }
+    
+    -- Reset các biến global
+    isOnDuty = false
+    currentSystems = playerData.systems
+    currentEfficiency = 0
+    currentEarnings = 0
+    
+    -- Đóng UI nếu đang mở
+    CloseUI()
 end)
 
 -- Thread: Cập nhật thời gian làm việc liên tục (mỗi giây)

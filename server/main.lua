@@ -76,11 +76,14 @@ local function CheckRentalExpiry(turbineId)
             TurbineExpiryGracePeriod[turbineId] = nil
             BroadcastRentalStatus(turbineId)
             
-            -- Thông báo cho owner nếu đang online
+            -- Thông báo cho owner nếu đang online và trigger reset data
             if graceData.playerId then
                 TriggerClientEvent('QBCore:Notify', graceData.playerId, 
                     '⚠️ Hết thời gian rút tiền! Trạm đã được reset.', 
                     'error', 5000)
+                
+                -- Trigger event để client reset toàn bộ data
+                TriggerClientEvent('windturbine:gracePeriodExpired', graceData.playerId)
             end
             
             return true
@@ -245,22 +248,22 @@ AddEventHandler('windturbine:rentTurbine', function(turbineId, rentalPrice)
         return
     end
     
-    -- Kiểm tra tiền
-    local playerMoney = Player.Functions.GetMoney('cash') or 0
+    -- Kiểm tra tiền khóa (tienkhoa)
+    local playerMoney = Player.Functions.GetMoney('tienkhoa') or 0
     
     if rentalPrice > 0 and playerMoney < rentalPrice then
         TriggerClientEvent('QBCore:Notify', playerId, 
-            string.format('❌ Không đủ tiền! Cần $%s IC (Bạn có: $%s IC)', 
+            string.format('❌ Không đủ tiền khóa! Cần $%s IC (Bạn có: $%s IC)', 
                 string.format("%d", rentalPrice),
                 string.format("%d", playerMoney)), 
-            'error')
+            'error', 7000)
         TriggerClientEvent('windturbine:rentFailed', playerId)
         return
     end
     
-    -- Trừ tiền
+    -- Trừ tiền khóa
     if rentalPrice > 0 then
-        Player.Functions.RemoveMoney('cash', rentalPrice)
+        Player.Functions.RemoveMoney('tienkhoa', rentalPrice)
     end
     
     -- Lấy thông tin player

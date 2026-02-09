@@ -10,7 +10,7 @@ Config.TestMode = true -- Đổi thành false khi production
 -- ============================================
 -- HỆ THỐNG THUÊ TRẠM ĐIỆN GIÓ
 -- ============================================
-Config.RentalPrice = 0 -- MIỄN PHÍ để test
+Config.RentalPrice = 200000 -- 200,000 IC để thuê trạm (trừ vào tienkhoa)
 
 if Config.TestMode then
     -- TEST MODE: Expiry nhanh để test
