@@ -146,10 +146,31 @@
         </div>
       </div>
     </div>
+    
+    <!-- Popup xác nhận thuê trạm -->
+    <div v-if="showConfirmPopup" class="confirm-popup-overlay" @click="cancelRent">
+      <div class="confirm-popup" @click.stop>
+        <div class="confirm-popup-header">
+          <h2>XÁC NHẬN THUÊ TRẠM</h2>
+        </div>
+        <div class="confirm-popup-body">
+          <p>{{ confirmMessage }}</p>
+        </div>
+        <div class="confirm-popup-footer">
+          <button class="btn-confirm" @click="confirmRent">Xác nhận</button>
+          <button class="btn-cancel" @click="cancelRent">Hủy</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script>
+// Helper function để lấy tên resource
+function GetParentResourceName() {
+  return window.location.hostname === 'localhost' ? 'f17-windturbine' : window.GetParentResourceName()
+}
+
 export default {
   name: 'RentalUI',
   props: {
@@ -175,9 +196,59 @@ export default {
     }
   },
   emits: ['rent', 'close'],
+  data() {
+    return {
+      showConfirmPopup: false,
+      confirmMessage: ''
+    }
+  },
   methods: {
     handleRent() {
+      // Gọi callback để kiểm tra số tiền
+      fetch(`https://${GetParentResourceName()}/checkMoneyForRent`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          rentalPrice: this.rentalPrice
+        })
+      })
+      .then(resp => resp.json())
+      .then(data => {
+        if (!data.hasEnough) {
+          // Không đủ tiền - gửi request lên server để server thông báo lỗi chi tiết
+          this.$emit('rent')
+          return
+        }
+        
+        // Đủ tiền - Hiển thị popup xác nhận
+        const tienkhoa = data.tienkhoa
+        const bank = data.bank
+        const price = this.rentalPrice
+        
+        if (tienkhoa >= price) {
+          // Trường hợp 1: Đủ IC Khóa
+          this.confirmMessage = `Bạn có chắc chắn sử dụng $${this.formatMoney(price)} IC Khóa để thuê trạm?`
+        } else if (bank >= price) {
+          // Trường hợp 2: Chỉ có IC Thường (Bank)
+          this.confirmMessage = `Bạn có chắc chắn sử dụng $${this.formatMoney(price)} IC Thường để thuê trạm?`
+        } else {
+          // Trường hợp 3: Có cả IC Khóa và IC Thường
+          const khoa = tienkhoa
+          const thuong = price - tienkhoa
+          this.confirmMessage = `Bạn có chắc chắn sử dụng $${this.formatMoney(khoa)} IC Khóa và $${this.formatMoney(thuong)} IC Thường để thuê trạm?`
+        }
+        
+        this.showConfirmPopup = true
+      })
+    },
+    confirmRent() {
+      this.showConfirmPopup = false
       this.$emit('rent')
+    },
+    cancelRent() {
+      this.showConfirmPopup = false
     },
     handleClose() {
       this.$emit('close')
@@ -611,5 +682,121 @@ export default {
 .expiry-time {
     font-size: 0.8125rem;
     color: rgba(255, 255, 255, 0.7);
+}
+
+/* Popup xác nhận */
+.confirm-popup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.confirm-popup {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    border: 0.125rem solid rgba(0, 255, 255, 0.5);
+    border-radius: 1.25rem;
+    padding: 2rem;
+    min-width: 25rem;
+    max-width: 35rem;
+    box-shadow: 0 0 2.5rem rgba(0, 255, 255, 0.3);
+    animation: popupSlideIn 0.3s ease;
+}
+
+@keyframes popupSlideIn {
+    from {
+        transform: translateY(-3.125rem);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.confirm-popup-header {
+    text-align: center;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 0.125rem solid rgba(0, 255, 255, 0.3);
+}
+
+.confirm-popup-header h2 {
+    background: linear-gradient(180deg, #80F0FF 0%, #00C4DD 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-family: Goldman;
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: 0.1875rem;
+    margin: 0;
+}
+
+.confirm-popup-body {
+    margin-bottom: 2rem;
+    text-align: center;
+}
+
+.confirm-popup-body p {
+    color: #FFF;
+    font-family: "Baloo 2";
+    font-size: 1.125rem;
+    line-height: 1.6;
+    margin: 0;
+}
+
+.confirm-popup-footer {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+}
+
+.btn-confirm,
+.btn-cancel {
+    padding: 0.875rem 2rem;
+    border-radius: 0.625rem;
+    font-family: Goldman;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.0625rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    border: 0.125rem solid;
+}
+
+.btn-confirm {
+    background: linear-gradient(180deg, rgba(0, 255, 81, 0) 0%, rgba(0, 255, 81, 0.5) 100%);
+    border-color: #00ff51;
+    color: #00ff51;
+}
+
+.btn-confirm:hover {
+    background: rgba(0, 255, 136, 0.3);
+    box-shadow: 0 0 1.25rem rgba(0, 255, 136, 0.6);
+    transform: translateY(-0.125rem);
+}
+
+.btn-cancel {
+    background: linear-gradient(180deg, rgba(255, 68, 68, 0) 0%, rgba(255, 68, 68, 0.5) 100%);
+    border-color: #ff4444;
+    color: #ff4444;
+}
+
+.btn-cancel:hover {
+    background: rgba(255, 68, 68, 0.3);
+    box-shadow: 0 0 1.25rem rgba(255, 68, 68, 0.6);
+    transform: translateY(-0.125rem);
 }
 </style>

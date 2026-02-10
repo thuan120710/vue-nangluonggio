@@ -150,16 +150,21 @@ export default {
   emits: ['close', 'withdraw'],
   setup(props, { emit }) {
     const currentTime = ref(Math.floor(Date.now() / 1000))
+    let timeInterval = null
     
     // Cập nhật thời gian mỗi giây
     onMounted(() => {
-      const interval = setInterval(() => {
+      timeInterval = setInterval(() => {
         currentTime.value = Math.floor(Date.now() / 1000)
       }, 1000)
-      
-      onUnmounted(() => {
-        clearInterval(interval)
-      })
+    })
+    
+    // CRITICAL FIX: onUnmounted phải ở ngoài onMounted
+    onUnmounted(() => {
+      if (timeInterval) {
+        clearInterval(timeInterval)
+        timeInterval = null
+      }
     })
     
     const remainingTime = computed(() => {

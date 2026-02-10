@@ -706,6 +706,15 @@ RegisterNUICallback('rentTurbine', function(data, cb)
     cb('ok')
 end)
 
+-- NUI Callback: Kiểm tra số tiền trước khi thuê
+RegisterNUICallback('checkMoneyForRent', function(data, cb)
+    local rentalPrice = data.rentalPrice or Config.RentalPrice or 0
+    
+    QBCore.Functions.TriggerCallback('windturbine:checkMoney', function(result)
+        cb(result)
+    end, rentalPrice)
+end)
+
 -- Server Events
 RegisterNetEvent('windturbine:notify')
 AddEventHandler('windturbine:notify', function(message, type, duration)
@@ -732,11 +741,11 @@ AddEventHandler('windturbine:rentSuccess', function(data)
     OpenMainUI()
 end)
 
-RegisterNetEvent('windturbine:rentFailed')
-AddEventHandler('windturbine:rentFailed', function()
-    -- StateBag đã tự động cập nhật, không cần làm gì
-    no:Notify('❌ Không thể thuê trạm này!', 'error', 3000)
-end)
+-- RegisterNetEvent('windturbine:rentFailed')
+-- AddEventHandler('windturbine:rentFailed', function()
+--     -- StateBag đã tự động cập nhật, không cần làm gì
+--     no:Notify('❌ Không thể thuê trạm này!', 'error', 3000)
+-- end)
 
 RegisterNetEvent('windturbine:withdrawSuccess')
 AddEventHandler('windturbine:withdrawSuccess', function(amount, isGracePeriod)
@@ -1054,15 +1063,16 @@ CreateThread(function()
     end
 end)
 
--- Vòng lặp xử lý logic cho TỪNG trạm (mỗi trạm độc lập)
-for _, turbineData in ipairs(Config.TurbineLocations) do
-    CreateThread(function()
+-- OPTIMIZATION FIX: Gộp tất cả trạm vào 1 thread duy nhất thay vì 5 threads riêng biệt
+CreateThread(function()
+    -- Load rental status ban đầu cho tất cả trạm
+    local turbineStates = {}
+    
+    for _, turbineData in ipairs(Config.TurbineLocations) do
         local tId = turbineData.id
-        local coords = turbineData.coords
-        local tName = turbineData.name
+        local initialState = GlobalState['turbine_' .. tId]
         
-        -- Rental status riêng cho trạm này
-        local localRentalStatus = {
+        turbineStates[tId] = {
             isRented = false,
             isOwner = false,
             ownerName = nil,
@@ -1071,27 +1081,32 @@ for _, turbineData in ipairs(Config.TurbineLocations) do
             isGracePeriod = false
         }
         
-        -- Load rental status ban đầu
-        local initialState = GlobalState['turbine_' .. tId]
         if initialState and initialState.isRented then
             local Player = QBCore.Functions.GetPlayerData()
             local isOwner = initialState.isRented and Player.citizenid == initialState.citizenid
             
-            localRentalStatus.isRented = initialState.isRented
-            localRentalStatus.isOwner = isOwner
-            localRentalStatus.ownerName = initialState.ownerName
-            localRentalStatus.expiryTime = initialState.expiryTime
-            localRentalStatus.withdrawDeadline = initialState.withdrawDeadline
-            localRentalStatus.isGracePeriod = initialState.isGracePeriod or false
+            turbineStates[tId].isRented = initialState.isRented
+            turbineStates[tId].isOwner = isOwner
+            turbineStates[tId].ownerName = initialState.ownerName
+            turbineStates[tId].expiryTime = initialState.expiryTime
+            turbineStates[tId].withdrawDeadline = initialState.withdrawDeadline
+            turbineStates[tId].isGracePeriod = initialState.isGracePeriod or false
         end
         
-        -- StateBag handler cho trạm này
+        -- StateBag handler cho từng trạm (chỉ đăng ký 1 lần)
         AddStateBagChangeHandler('turbine_' .. tId, 'global', function(bagName, key, value)
+            local localRentalStatus = turbineStates[tId]
             local wasGracePeriod = localRentalStatus.isGracePeriod
             local wasOwner = localRentalStatus.isOwner
             
             if value then
+                -- RACE CONDITION FIX: Kiểm tra Player trước khi truy cập
                 local Player = QBCore.Functions.GetPlayerData()
+                if not Player or not Player.citizenid then
+                    -- Player chưa load xong, bỏ qua update này
+                    return
+                end
+                
                 local isOwner = (value.isRented and Player.citizenid == value.citizenid) or 
                                (value.isGracePeriod and Player.citizenid == value.citizenid)
                 
@@ -1142,15 +1157,38 @@ for _, turbineData in ipairs(Config.TurbineLocations) do
                 end
             end
         end)
+    end
+    
+    -- OPTIMIZATION FIX: Vòng lặp chính xử lý TẤT CẢ trạm trong 1 thread
+    while true do
+        local sleep = 500 -- OPTIMIZATION: Tăng sleep mặc định từ 1000 lên 500ms để responsive hơn
+        local playerPed = PlayerPedId()
+        local playerCoords = GetEntityCoords(playerPed)
+        local nearestDist = 999999
+        local nearestTurbine = nil
         
-        while true do
-            local sleep = 1000
-            local playerPed = PlayerPedId()
-            local playerCoords = GetEntityCoords(playerPed)
+        -- Tìm trạm gần nhất
+        for _, turbineData in ipairs(Config.TurbineLocations) do
+            local coords = turbineData.coords
             local dist = #(playerCoords - vector3(coords.x, coords.y, coords.z))
-
-            if dist < 3.0 then
-                sleep = 0
+            
+            if dist < nearestDist then
+                nearestDist = dist
+                nearestTurbine = turbineData
+            end
+        end
+        
+        -- Chỉ xử lý trạm gần nhất nếu trong phạm vi 10m
+        if nearestTurbine and nearestDist < 10.0 then
+            local turbineData = nearestTurbine
+            local tId = turbineData.id
+            local coords = turbineData.coords
+            local tName = turbineData.name
+            local localRentalStatus = turbineStates[tId]
+            
+            -- OPTIMIZATION FIX: Chỉ vẽ text khi < 3m, nhưng sleep = 5 thay vì 0
+            if nearestDist < 3.0 then
+                sleep = 5 -- CRITICAL FIX: Thay vì Wait(0), dùng Wait(5) để giảm CPU usage
                 
                 local displayText = ""
                 
@@ -1177,12 +1215,14 @@ for _, turbineData in ipairs(Config.TurbineLocations) do
                     rentalStatus = localRentalStatus
                     OpenMainUI()
                 end
+            elseif nearestDist < 10.0 then
+                sleep = 200 -- Gần nhưng chưa đủ gần để tương tác
             end
-            
-            Wait(sleep)
         end
-    end)
-end
+        
+        Wait(sleep)
+    end
+end)
 
 -- Helper: Draw 3D Text
 function DrawText3D(x, y, z, text)

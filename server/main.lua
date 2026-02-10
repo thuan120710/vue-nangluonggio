@@ -180,9 +180,12 @@ AddEventHandler('windturbine:withdrawEarnings', function(amount, isGracePeriod, 
     Player.Functions.AddMoney('tienkhoa', amount)
     TriggerClientEvent('windturbine:withdrawSuccess', playerId, amount, isGracePeriod)
     
-    -- Gửi phone notification
-    local phoneNumber = exports["lb-phone"]:GetEquippedPhoneNumber(playerId)
-    if phoneNumber then
+    -- Gửi phone notification (PROTECTED: Kiểm tra lb-phone tồn tại)
+    local success, phoneNumber = pcall(function()
+        return exports["lb-phone"]:GetEquippedPhoneNumber(playerId)
+    end)
+    
+    if success and phoneNumber then
         local withdrawMsg
         if isGracePeriod then
             withdrawMsg = string.format("💰 Rút tiền thành công\n\nSố tiền: $%s IC\nThời gian: %s\n\n✅ Trạm đã được reset. Bạn có thể thuê lại bất cứ lúc nào!", 
@@ -191,7 +194,10 @@ AddEventHandler('windturbine:withdrawEarnings', function(amount, isGracePeriod, 
             withdrawMsg = string.format("💰 Xác nhận rút tiền\n\nSố tiền: $%s IC\nThời gian: %s\n\nTiền đã được chuyển vào tài khoản IC của bạn. Cảm ơn bạn đã làm việc chăm chỉ!", 
                 string.format("%d", amount), os.date("%H:%M:%S - %d/%m/%Y"))
         end
-        exports['lb-phone']:SendMessage('Trạm Điện Gió', tostring(phoneNumber), withdrawMsg, nil, nil, nil)
+        
+        pcall(function()
+            exports['lb-phone']:SendMessage('Trạm Điện Gió', tostring(phoneNumber), withdrawMsg, nil, nil, nil)
+        end)
     end
 end)
 
@@ -203,6 +209,21 @@ AddEventHandler('windturbine:rentTurbine', function(turbineId, rentalPrice)
     
     if not Player then
         TriggerClientEvent('windturbine:notify', playerId, '❌ Lỗi hệ thống!', 'error')
+        TriggerClientEvent('windturbine:rentFailed', playerId)
+        return
+    end
+    
+    -- SECURITY FIX: Validate turbineId
+    local validTurbineId = false
+    for _, turbineData in ipairs(Config.TurbineLocations) do
+        if turbineData.id == turbineId then
+            validTurbineId = true
+            break
+        end
+    end
+    
+    if not validTurbineId then
+        TriggerClientEvent('windturbine:notify', playerId, '❌ Trạm không hợp lệ!', 'error')
         TriggerClientEvent('windturbine:rentFailed', playerId)
         return
     end
@@ -249,22 +270,35 @@ AddEventHandler('windturbine:rentTurbine', function(turbineId, rentalPrice)
         return
     end
     
-    -- Kiểm tra tiền khóa (tienkhoa)
-    local playerMoney = Player.Functions.GetMoney('tienkhoa') or 0
+    -- Kiểm tra tiền khóa và bank
+    local tienkhoa = Player.Functions.GetMoney('tienkhoa') or 0
+    local bank = Player.Functions.GetMoney('bank') or 0
+    local totalMoney = tienkhoa + bank
     
-    if rentalPrice > 0 and playerMoney < rentalPrice then
+    if rentalPrice > 0 and totalMoney < rentalPrice then
         TriggerClientEvent('windturbine:notify', playerId, 
-            string.format('❌ Không đủ tiền khóa! Cần $%s IC (Bạn có: $%s IC)', 
+            string.format('❌ Không đủ tiền! Cần $%s IC (Bạn có: $%s IC + $%s Bank)', 
                 string.format("%d", rentalPrice),
-                string.format("%d", playerMoney)), 
+                string.format("%d", tienkhoa),
+                string.format("%d", bank)), 
             'error', 7000)
         TriggerClientEvent('windturbine:rentFailed', playerId)
         return
     end
     
-    -- Trừ tiền khóa
+    -- Trừ tiền: Ưu tiên trừ tiền khóa trước, thiếu thì trừ bank
     if rentalPrice > 0 then
-        Player.Functions.RemoveMoney('tienkhoa', rentalPrice)
+        if tienkhoa >= rentalPrice then
+            -- Đủ tiền khóa, chỉ trừ tiền khóa
+            Player.Functions.RemoveMoney('tienkhoa', rentalPrice)
+        else
+            -- Không đủ tiền khóa, trừ hết tiền khóa + phần còn lại từ bank
+            local remainingAmount = rentalPrice - tienkhoa
+            if tienkhoa > 0 then
+                Player.Functions.RemoveMoney('tienkhoa', tienkhoa)
+            end
+            Player.Functions.RemoveMoney('bank', remainingAmount)
+        end
     end
     
     -- Lấy thông tin player
@@ -289,9 +323,12 @@ AddEventHandler('windturbine:rentTurbine', function(turbineId, rentalPrice)
         expiryTime = TurbineRentals[turbineId].expiryTime
     })
     
-    -- Gửi tin nhắn xác nhận qua lb-phone
-    local phoneNumber = exports["lb-phone"]:GetEquippedPhoneNumber(playerId)
-    if phoneNumber then
+    -- Gửi tin nhắn xác nhận qua lb-phone (PROTECTED)
+    local success, phoneNumber = pcall(function()
+        return exports["lb-phone"]:GetEquippedPhoneNumber(playerId)
+    end)
+    
+    if success and phoneNumber then
         local durationText = Config.TestMode and "60 giây" or "7 ngày"
         local gracePeriodText = Config.TestMode and "30 giây" or "4 giờ"
         local rentalMsg = ""
@@ -301,14 +338,17 @@ AddEventHandler('windturbine:rentTurbine', function(turbineId, rentalPrice)
         else
             rentalMsg = string.format("🌬️ Xác nhận thuê Trạm Điện Gió\n\n💰 Giá thuê: MIỄN PHÍ\n⏰ Thời hạn: %s\n\n✅ Bạn có thể bắt đầu làm việc ngay bây giờ!\n\n⚠️ Lưu ý: Sau khi hết hạn, bạn có %s để rút tiền.", durationText, gracePeriodText)
         end
-        exports['lb-phone']:SendMessage('Trạm Điện Gió', tostring(phoneNumber), rentalMsg, nil, nil, nil)
+        
+        pcall(function()
+            exports['lb-phone']:SendMessage('Trạm Điện Gió', tostring(phoneNumber), rentalMsg, nil, nil, nil)
+        end)
     end
 end)
 
--- Thread: Tự động kiểm tra expiry mỗi 5 giây
+-- Thread: Tự động kiểm tra expiry (OPTIMIZATION: Tăng interval lên 30 giây thay vì 5 giây)
 CreateThread(function()
     while true do
-        Wait(5000) -- Check mỗi 5 giây
+        Wait(30000) -- OPTIMIZATION FIX: Check mỗi 30 giây thay vì 5 giây (vẫn đủ nhanh cho test mode 60s)
         
         -- Kiểm tra tất cả các trạm
         for turbineId, _ in pairs(TurbineRentals) do
@@ -408,6 +448,27 @@ end)
 QBCore.Functions.CreateCallback('windturbine:getJerrycanCount', function(source, cb)
     local Player = QBCore.Functions.GetPlayer(source)
     cb(GetJerrycanCount(Player))
+end)
+
+-- Callback: Kiểm tra số tiền IC Khóa và IC Thường
+QBCore.Functions.CreateCallback('windturbine:checkMoney', function(source, cb, rentalPrice)
+    local Player = QBCore.Functions.GetPlayer(source)
+    
+    if not Player then
+        cb({hasEnough = false, tienkhoa = 0, bank = 0})
+        return
+    end
+    
+    local tienkhoa = Player.Functions.GetMoney('tienkhoa') or 0
+    local bank = Player.Functions.GetMoney('bank') or 0
+    local totalMoney = tienkhoa + bank
+    
+    cb({
+        hasEnough = totalMoney >= rentalPrice,
+        tienkhoa = tienkhoa,
+        bank = bank,
+        totalMoney = totalMoney
+    })
 end)
 
 -- Event: Sử dụng jerrycan để đổ xăng
