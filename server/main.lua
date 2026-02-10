@@ -1,4 +1,5 @@
 QBCore = exports['qb-core']:GetCoreObject()
+local no = exports['f17notify']
 
 -- ============================================
 -- SERVER XỬ LÝ:
@@ -78,7 +79,7 @@ local function CheckRentalExpiry(turbineId)
             
             -- Thông báo cho owner nếu đang online và trigger reset data
             if graceData.playerId then
-                TriggerClientEvent('QBCore:Notify', graceData.playerId, 
+                TriggerClientEvent('windturbine:notify', graceData.playerId, 
                     '⚠️ Hết thời gian rút tiền! Trạm đã được reset.', 
                     'error', 5000)
                 
@@ -117,9 +118,9 @@ local function CheckRentalExpiry(turbineId)
         -- Thông báo cho owner nếu đang online
         if rentalData.playerId then
             local gracePeriodText = Config.TestMode and "30 giây" or "4 giờ"
-            TriggerClientEvent('QBCore:Notify', rentalData.playerId, 
+            TriggerClientEvent('windturbine:notify', rentalData.playerId, 
                 string.format('⚠️ Hết thời hạn thuê! Bạn có %s để rút tiền.', gracePeriodText), 
-                'warning', 8000)
+                'error', 8000)
             
             -- Gửi phone notification
             local phoneNumber = exports["lb-phone"]:GetEquippedPhoneNumber(rentalData.playerId)
@@ -142,13 +143,13 @@ AddEventHandler('windturbine:withdrawEarnings', function(amount, isGracePeriod, 
     local Player = QBCore.Functions.GetPlayer(playerId)
     
     if not Player then
-        TriggerClientEvent('QBCore:Notify', playerId, '❌ Lỗi hệ thống!', 'error')
+        TriggerClientEvent('windturbine:notify', playerId, '❌ Lỗi hệ thống!', 'error')
         return
     end
     
     -- Kiểm tra số tiền
     if not amount or amount <= 0 then
-        TriggerClientEvent('QBCore:Notify', playerId, '❌ Không có tiền để rút!', 'error')
+        TriggerClientEvent('windturbine:notify', playerId, '❌ Không có tiền để rút!', 'error')
         return
     end
     
@@ -159,14 +160,14 @@ AddEventHandler('windturbine:withdrawEarnings', function(amount, isGracePeriod, 
         local graceData = TurbineExpiryGracePeriod[turbineId]
         
         if not graceData then
-            TriggerClientEvent('QBCore:Notify', playerId, '❌ Không có tiền để rút!', 'error')
+            TriggerClientEvent('windturbine:notify', playerId, '❌ Không có tiền để rút!', 'error')
             return
         end
         
         -- Kiểm tra owner
         local citizenid = Player.PlayerData.citizenid
         if graceData.citizenid ~= citizenid then
-            TriggerClientEvent('QBCore:Notify', playerId, '❌ Bạn không phải chủ trạm này!', 'error')
+            TriggerClientEvent('windturbine:notify', playerId, '❌ Bạn không phải chủ trạm này!', 'error')
             return
         end
         
@@ -201,7 +202,7 @@ AddEventHandler('windturbine:rentTurbine', function(turbineId, rentalPrice)
     local Player = QBCore.Functions.GetPlayer(playerId)
     
     if not Player then
-        TriggerClientEvent('QBCore:Notify', playerId, '❌ Lỗi hệ thống!', 'error')
+        TriggerClientEvent('windturbine:notify', playerId, '❌ Lỗi hệ thống!', 'error')
         TriggerClientEvent('windturbine:rentFailed', playerId)
         return
     end
@@ -211,7 +212,7 @@ AddEventHandler('windturbine:rentTurbine', function(turbineId, rentalPrice)
     -- Kiểm tra xem player đã thuê trạm nào chưa
     for tId, rentalData in pairs(TurbineRentals) do
         if rentalData.citizenid == citizenid then
-            TriggerClientEvent('QBCore:Notify', playerId, 
+            TriggerClientEvent('windturbine:notify', playerId, 
                 '❌ Bạn đã thuê một trạm khác rồi! Không thể thuê nhiều trạm cùng lúc.', 
                 'error', 5000)
             TriggerClientEvent('windturbine:rentFailed', playerId)
@@ -222,7 +223,7 @@ AddEventHandler('windturbine:rentTurbine', function(turbineId, rentalPrice)
     -- Kiểm tra xem player có đang trong grace period của trạm nào không
     for tId, graceData in pairs(TurbineExpiryGracePeriod) do
         if graceData.citizenid == citizenid then
-            TriggerClientEvent('QBCore:Notify', playerId, 
+            TriggerClientEvent('windturbine:notify', playerId, 
                 '❌ Bạn cần rút tiền từ trạm cũ trước khi thuê trạm mới!', 
                 'error', 5000)
             TriggerClientEvent('windturbine:rentFailed', playerId)
@@ -234,7 +235,7 @@ AddEventHandler('windturbine:rentTurbine', function(turbineId, rentalPrice)
     CheckRentalExpiry(turbineId)
     if TurbineRentals[turbineId] then
         local ownerName = TurbineRentals[turbineId].ownerName
-        TriggerClientEvent('QBCore:Notify', playerId, 
+        TriggerClientEvent('windturbine:notify', playerId, 
             string.format('❌ Trạm này đã được thuê bởi %s!', ownerName), 
             'error', 5000)
         TriggerClientEvent('windturbine:rentFailed', playerId)
@@ -243,7 +244,7 @@ AddEventHandler('windturbine:rentTurbine', function(turbineId, rentalPrice)
     
     -- Validate rentalPrice
     if rentalPrice == nil or type(rentalPrice) ~= "number" or rentalPrice < 0 then
-        TriggerClientEvent('QBCore:Notify', playerId, '❌ Lỗi giá thuê!', 'error')
+        TriggerClientEvent('windturbine:notify', playerId, '❌ Lỗi giá thuê!', 'error')
         TriggerClientEvent('windturbine:rentFailed', playerId)
         return
     end
@@ -252,7 +253,7 @@ AddEventHandler('windturbine:rentTurbine', function(turbineId, rentalPrice)
     local playerMoney = Player.Functions.GetMoney('tienkhoa') or 0
     
     if rentalPrice > 0 and playerMoney < rentalPrice then
-        TriggerClientEvent('QBCore:Notify', playerId, 
+        TriggerClientEvent('windturbine:notify', playerId, 
             string.format('❌ Không đủ tiền khóa! Cần $%s IC (Bạn có: $%s IC)', 
                 string.format("%d", rentalPrice),
                 string.format("%d", playerMoney)), 
@@ -418,7 +419,7 @@ AddEventHandler('windturbine:useJerrycan', function(fuelToAdd)
     if not Player then return end
     
     if GetJerrycanCount(Player) <= 0 then
-        TriggerClientEvent('QBCore:Notify', playerId, '❌ Bạn không có can xăng!', 'error')
+        TriggerClientEvent('windturbine:notify', playerId, '❌ Bạn không có can xăng!', 'error')
         return
     end
     
@@ -448,7 +449,7 @@ AddEventHandler('windturbine:useMultipleJerrycans', function(canCount, fuelToAdd
     local totalCans = GetJerrycanCount(Player)
     
     if totalCans < canCount then
-        TriggerClientEvent('QBCore:Notify', playerId, string.format('❌ Không đủ can xăng! Cần: %d, Có: %d', canCount, totalCans), 'error')
+        TriggerClientEvent('windturbine:notify', playerId, string.format('❌ Không đủ can xăng! Cần: %d, Có: %d', canCount, totalCans), 'error')
         return
     end
     

@@ -1,4 +1,5 @@
 QBCore = exports['qb-core']:GetCoreObject()
+local no = exports['f17notify']
 
 local isOnDuty = false
 local isNearTurbine = false
@@ -136,7 +137,7 @@ local function OpenMainUI()
     
     if not rentalStatus.isOwner then
         -- Đã thuê nhưng không phải chủ
-        QBCore.Functions.Notify('❌ Trạm này đã có người thuê!', 'error', 5000)
+        no:Notify('❌ Trạm này đã có người thuê!', 'error', 5000)
         return
     end
     
@@ -351,7 +352,7 @@ local function ApplyPenalty()
     end
     
     if not selectedPenalty or selectedPenalty.systems == 0 then 
-        QBCore.Functions.Notify('✅ May mắn! Không có hư hỏng nào xảy ra!', 'success', 3000)
+        no:Notify('✅ May mắn! Không có hư hỏng nào xảy ra!', 'success', 3000)
         return 
     end
     
@@ -381,7 +382,7 @@ local function ApplyPenalty()
     
     -- Nếu không còn hệ thống nào > 30%, không áp dụng penalty
     if #availableSystems == 0 then
-        QBCore.Functions.Notify('⚠️ Tất cả hệ thống đã ở mức nguy hiểm! Không thể hư hỏng thêm.', 'warning', 3000)
+        no:Notify('⚠️ Tất cả hệ thống đã ở mức nguy hiểm! Không thể hư hỏng thêm.', 'error', 3000)
         return
     end
     
@@ -406,9 +407,9 @@ local function ApplyPenalty()
     
     -- Thông báo chi tiết
     local detailsText = table.concat(systemDetails, ' | ')
-    QBCore.Functions.Notify(
+    no:Notify(
         string.format('⚠️ Cảnh báo hư hỏng! Giảm %d%%: %s', selectedPenalty.damage, detailsText), 
-        'warning', 7000)
+        'error', 7000)
     
     -- Gửi cảnh báo penalty qua lb-phone
     TriggerServerEvent('windturbine:sendPhoneNotification', 'penalty', {
@@ -453,7 +454,7 @@ end)
 RegisterNUICallback('startDuty', function(data, cb)
     -- Không cho phép bật duty khi đang grace period
     if rentalStatus.isGracePeriod then
-        QBCore.Functions.Notify('❌ Không thể làm việc trong thời gian grace period!', 'error', 5000)
+        no:Notify('❌ Không thể làm việc trong thời gian grace period!', 'error', 5000)
         cb('ok')
         return
     end
@@ -462,7 +463,7 @@ RegisterNUICallback('startDuty', function(data, cb)
     -- Nếu hết xăng hoàn toàn (0 fuel), cần đổ 4 can (100 fuel)
     -- Nếu còn xăng, chỉ cần > 0 là được
     if playerData.currentFuel == 0 then
-        QBCore.Functions.Notify(string.format('❌ Hết xăng! Cần đổ %d can xăng  để khởi động lại máy.', math.ceil(Config.MinFuelToStart / Config.FuelPerJerrycan)), 'error', 7000)
+        no:Notify(string.format('❌ Hết xăng! Cần đổ %d can xăng  để khởi động lại máy.', math.ceil(Config.MinFuelToStart / Config.FuelPerJerrycan)), 'error', 7000)
         cb('ok')
         return
     elseif playerData.currentFuel < Config.MinFuelToStart and playerData.currentFuel > 0 then
@@ -474,7 +475,7 @@ RegisterNUICallback('startDuty', function(data, cb)
     local canWork, reason = CheckTimeLimit()
     if not canWork then
         if reason == "DAILY_LIMIT" then
-            QBCore.Functions.Notify('❌ Đã đạt giới hạn 12 giờ/ngày! Hãy quay lại sau 6:00 sáng.', 'error', 5000)
+            no:Notify('❌ Đã đạt giới hạn 12 giờ/ngày! Hãy quay lại sau 6:00 sáng.', 'error', 5000)
             SendNUIMessage({
                 action = 'workLimitReached'
             })
@@ -512,7 +513,7 @@ RegisterNUICallback('startDuty', function(data, cb)
     -- Update UI (systems, efficiency, earningRate)
     UpdateUI()
     
-    QBCore.Functions.Notify('✅ Đã bắt đầu ca làm việc tại cối xay gió!', 'success', 3000)
+    no:Notify('✅ Đã bắt đầu ca làm việc tại cối xay gió!', 'success', 3000)
     PlaySound(-1, "CHECKPOINT_PERFECT", "HUD_MINI_GAME_SOUNDSET", 0, 0, 1)
     
     -- Gửi tin nhắn chào mừng qua lb-phone
@@ -529,7 +530,7 @@ RegisterNUICallback('stopDuty', function(data, cb)
     StopDuty()
     CloseUI()
     
-    QBCore.Functions.Notify('👋 Đã kết thúc ca làm việc!', 'primary', 3000)
+    no:Notify('👋 Đã kết thúc ca làm việc!', 'primary', 3000)
     PlaySound(-1, "QUIT", "HUD_FRONTEND_DEFAULT_SOUNDSET", 0, 0, 1)
     
     SendNUIMessage({
@@ -542,7 +543,7 @@ end)
 RegisterNUICallback('repair', function(data, cb)
     -- Không cho phép sửa chữa khi đang grace period
     if rentalStatus.isGracePeriod then
-        QBCore.Functions.Notify('❌ Không thể sửa chữa trong thời gian grace period!', 'error', 5000)
+        no:Notify('❌ Không thể sửa chữa trong thời gian grace period!', 'error', 5000)
         cb('ok')
         return
     end
@@ -551,7 +552,7 @@ RegisterNUICallback('repair', function(data, cb)
         -- Kiểm tra nếu hệ thống > 70% thì không cho sửa
         local systemValue = playerData.systems[data.system]
         if systemValue and systemValue > 70 then
-            QBCore.Functions.Notify('⚠️ Bảo trì bị từ chối: Mức hư hại hiện tại quá thấp. Yêu cầu ≤ 70%.', 'warning', 5000)
+            no:Notify('⚠️ Bảo trì bị từ chối: Mức hư hại hiện tại quá thấp. Yêu cầu ≤ 70%.', 'error', 5000)
             PlaySound(-1, "CHECKPOINT_MISSED", "HUD_MINI_GAME_SOUNDSET", 0, 0, 1)
             cb('ok')
             return
@@ -595,13 +596,13 @@ RegisterNUICallback('minigameResult', function(data, cb)
     
     -- Thông báo kết quả sửa chữa
     if result == 'perfect' then
-        QBCore.Functions.Notify('🌟 Hoàn hảo! Hệ thống ' .. system:upper() .. ' đã được sửa chữa tốt!', 'success', 3000)
+        no:Notify('🌟 Hoàn hảo! Hệ thống ' .. system:upper() .. ' đã được sửa chữa tốt!', 'success', 3000)
         PlaySound(-1, "CHECKPOINT_PERFECT", "HUD_MINI_GAME_SOUNDSET", 0, 0, 1)
     elseif result == 'good' then
-        QBCore.Functions.Notify('✅ Tốt! Hệ thống ' .. system:upper() .. ' đã được cải thiện!', 'success', 3000)
+        no:Notify('✅ Tốt! Hệ thống ' .. system:upper() .. ' đã được cải thiện!', 'success', 3000)
         PlaySound(-1, "CHECKPOINT_NORMAL", "HUD_MINI_GAME_SOUNDSET", 0, 0, 1)
     else
-        QBCore.Functions.Notify('❌ Thất bại! Hệ thống ' .. system:upper() .. ' bị giảm hiệu suất!', 'error', 3000)
+        no:Notify('❌ Thất bại! Hệ thống ' .. system:upper() .. ' bị giảm hiệu suất!', 'error', 3000)
         PlaySound(-1, "CHECKPOINT_MISSED", "HUD_MINI_GAME_SOUNDSET", 0, 0, 1)
     end
     
@@ -631,14 +632,14 @@ RegisterNUICallback('refuelTurbine', function(data, cb)
     -- Kiểm tra có jerrycan không
     QBCore.Functions.TriggerCallback('windturbine:hasJerrycan', function(hasItem)
         if not hasItem then
-            QBCore.Functions.Notify('❌ Bạn không có can xăng (Jerrycan)!', 'error', 5000)
+            no:Notify('❌ Bạn không có can xăng (Jerrycan)!', 'error', 5000)
             cb('ok')
             return
         end
         
         -- Kiểm tra xăng đã đầy chưa
         if playerData.currentFuel >= Config.MaxFuel then
-            QBCore.Functions.Notify('❌ Bình xăng đã đầy!', 'error', 3000)
+            no:Notify('❌ Bình xăng đã đầy!', 'error', 3000)
             cb('ok')
             return
         end
@@ -650,7 +651,7 @@ RegisterNUICallback('refuelTurbine', function(data, cb)
                 local cansNeeded = math.ceil(Config.MinFuelToStart / Config.FuelPerJerrycan)
                 
                 if count < cansNeeded then
-                    QBCore.Functions.Notify(string.format('❌ Cần %d can xăng để khởi động lại! (Bạn có: %d can)', cansNeeded, count), 'error', 7000)
+                    no:Notify(string.format('❌ Cần %d can xăng để khởi động lại! (Bạn có: %d can)', cansNeeded, count), 'error', 7000)
                     cb('ok')
                     return
                 end
@@ -674,7 +675,7 @@ RegisterNUICallback('withdrawEarnings', function(data, cb)
     local amount = math.floor(playerData.earningsPool)
     
     if amount <= 0 then
-        QBCore.Functions.Notify('❌ Không có tiền để rút!', 'error')
+        no:Notify('❌ Không có tiền để rút!', 'error')
         cb('ok')
         return
     end
@@ -695,7 +696,7 @@ RegisterNUICallback('rentTurbine', function(data, cb)
     
     -- Kiểm tra trạng thái hiện tại (StateBag đã tự động cập nhật)
     if rentalStatus.isRented and not rentalStatus.isOwner then
-        QBCore.Functions.Notify('❌ Trạm này đã có người thuê!', 'error', 5000)
+        no:Notify('❌ Trạm này đã có người thuê!', 'error', 5000)
         cb('ok')
         return
     end
@@ -706,18 +707,23 @@ RegisterNUICallback('rentTurbine', function(data, cb)
 end)
 
 -- Server Events
+RegisterNetEvent('windturbine:notify')
+AddEventHandler('windturbine:notify', function(message, type, duration)
+    no:Notify(message, type, duration)
+end)
+
 RegisterNetEvent('windturbine:rentSuccess')
 AddEventHandler('windturbine:rentSuccess', function(data)
     -- StateBag sẽ tự động cập nhật rentalStatus, không cần làm gì thêm
     
     -- Thông báo thành công
     if Config.RentalPrice > 0 then
-        QBCore.Functions.Notify(
+        no:Notify(
             string.format('✅ Đã thuê trạm điện gió! Giá: $%s IC | Thời hạn: 7 ngày', 
                 string.format("%d", Config.RentalPrice)), 
             'success', 5000)
     else
-        QBCore.Functions.Notify('✅ Đã thuê trạm điện gió MIỄN PHÍ! Thời hạn: 7 ngày', 'success', 5000)
+        no:Notify('✅ Đã thuê trạm điện gió MIỄN PHÍ! Thời hạn: 7 ngày', 'success', 5000)
     end
     
     -- Đóng UI thuê và mở UI làm việc
@@ -729,7 +735,7 @@ end)
 RegisterNetEvent('windturbine:rentFailed')
 AddEventHandler('windturbine:rentFailed', function()
     -- StateBag đã tự động cập nhật, không cần làm gì
-    QBCore.Functions.Notify('❌ Không thể thuê trạm này!', 'error', 3000)
+    no:Notify('❌ Không thể thuê trạm này!', 'error', 3000)
 end)
 
 RegisterNetEvent('windturbine:withdrawSuccess')
@@ -765,7 +771,7 @@ AddEventHandler('windturbine:withdrawSuccess', function(amount, isGracePeriod)
         
         -- Đóng UI
         CloseUI()
-        QBCore.Functions.Notify('✅ Đã rút tiền thành công! Trạm đã được reset.', 'success', 5000)
+        no:Notify('✅ Đã rút tiền thành công! Trạm đã được reset.', 'success', 5000)
     else
         -- Rút tiền bình thường: Chỉ reset earnings
         playerData.earningsPool = 0
@@ -777,7 +783,7 @@ AddEventHandler('windturbine:withdrawSuccess', function(amount, isGracePeriod)
         })
         
         -- Giữ UI mở
-        QBCore.Functions.Notify(string.format('💰 Đã rút $%d từ quỹ tiền lương!', amount), 'success')
+        no:Notify(string.format('💰 Đã rút $%d từ quỹ tiền lương!', amount), 'success')
     end
 end)
 
@@ -785,7 +791,7 @@ RegisterNetEvent('windturbine:refuelSuccess')
 AddEventHandler('windturbine:refuelSuccess', function(fuelAdded)
     playerData.currentFuel = playerData.currentFuel + fuelAdded
     
-    QBCore.Functions.Notify(string.format('⛽ Đã đổ %d giờ xăng! Tổng: %d/%d giờ', fuelAdded, playerData.currentFuel, Config.MaxFuel), 'success', 5000)
+    no:Notify(string.format('⛽ Đã đổ %d giờ xăng! Tổng: %d/%d giờ', fuelAdded, playerData.currentFuel, Config.MaxFuel), 'success', 5000)
     PlaySound(-1, "PICK_UP", "HUD_FRONTEND_DEFAULT_SOUNDSET", 0, 0, 1)
     
     -- Cập nhật UI ngay lập tức với giá trị xăng mới
@@ -877,7 +883,7 @@ CreateThread(function()
                 playerData.onDuty = false
                 isOnDuty = false
                 
-                QBCore.Functions.Notify('⏰ Đã hết giờ làm việc trong ngày! Ca làm việc tự động kết thúc.', 'error', 5000)
+                no:Notify('⏰ Đã hết giờ làm việc trong ngày! Ca làm việc tự động kết thúc.', 'error', 5000)
                 
                 -- Gửi báo cáo ca làm việc qua lb-phone
                 TriggerServerEvent('windturbine:sendPhoneNotification', 'dailyLimit', {
@@ -918,7 +924,7 @@ CreateThread(function()
                         -- Thông báo thu nhập
                         local efficiency = CalculateEfficiency()
                         if efficiency >= 80 then
-                            QBCore.Functions.Notify(string.format('💵 +$%d IC | Hiệu suất tuyệt vời!', math.floor(earnings)), 'success', 2000)
+                            no:Notify(string.format('💵 +$%d IC | Hiệu suất tuyệt vời!', math.floor(earnings)), 'success', 2000)
                             
                             -- Gửi tin nhắn khen thưởng qua lb-phone (chỉ khi hiệu suất cao)
                             TriggerServerEvent('windturbine:sendPhoneNotification', 'bonus', {
@@ -927,12 +933,12 @@ CreateThread(function()
                                 earningsPool = playerData.earningsPool
                             })
                         elseif efficiency >= 50 then
-                            QBCore.Functions.Notify(string.format('💵 +$%d IC', math.floor(earnings)), 'primary', 2000)
+                            no:Notify(string.format('💵 +$%d IC', math.floor(earnings)), 'primary', 2000)
                         end
                     end
                 else
                     -- Máy ngừng hoạt động
-                    QBCore.Functions.Notify('🚨 Máy ngừng hoạt động! 3 chỉ số dưới 30%! Cần sửa chữa ngay!', 'error', 5000)
+                    no:Notify('🚨 Máy ngừng hoạt động! 3 chỉ số dưới 30%! Cần sửa chữa ngay!', 'error', 5000)
                     
                     -- Gửi cảnh báo khẩn cấp qua lb-phone
                     local criticalSystems = {}
@@ -971,15 +977,15 @@ CreateThread(function()
                     
                     -- Cảnh báo khi sắp hết xăng
                     if playerData.currentFuel == 10 then
-                        QBCore.Functions.Notify('⚠️ Cảnh báo: Còn 10 giờ xăng!', 'warning', 5000)
+                        no:Notify('⚠️ Cảnh báo: Còn 10 giờ xăng!', 'error', 5000)
                     elseif playerData.currentFuel == 5 then
-                        QBCore.Functions.Notify('🚨 Khẩn cấp: Còn 5 giờ xăng!', 'error', 5000)
+                        no:Notify('🚨 Khẩn cấp: Còn 5 giờ xăng!', 'error', 5000)
                     elseif playerData.currentFuel == 0 then
                         -- Hết xăng -> Tắt máy
                         playerData.onDuty = false
                         isOnDuty = false
                         
-                        QBCore.Functions.Notify('⛽ Hết xăng! Máy đã dừng hoạt động.', 'error', 7000)
+                        no:Notify('⛽ Hết xăng! Máy đã dừng hoạt động.', 'error', 7000)
                         
                         SendNUIMessage({
                             action = 'outOfFuel'
@@ -1017,7 +1023,7 @@ CreateThread(function()
             if distance > 50.0 then
                 local currentTime = GetGameTimer()
                 if currentTime - lastWarningTime > 30000 then
-                    QBCore.Functions.Notify('⚠️ Bạn đang rời xa cối xay gió! Ca làm việc vẫn tiếp tục.', 'warning', 5000)
+                    no:Notify('⚠️ Bạn đang rời xa cối xay gió! Ca làm việc vẫn tiếp tục.', 'error', 5000)
                     lastWarningTime = currentTime
                 end
             end
@@ -1112,7 +1118,7 @@ for _, turbineData in ipairs(Config.TurbineLocations) do
                         action = 'hideUI'
                     })
                     
-                    QBCore.Functions.Notify('⏰ Thời hạn thuê đã hết! Bạn có 4 giờ để rút tiền.', 'error', 7000)
+                    no:Notify('⏰ Thời hạn thuê đã hết! Bạn có 4 giờ để rút tiền.', 'error', 7000)
                 end
                 
                 -- Cập nhật rentalStatus global nếu đây là trạm hiện tại

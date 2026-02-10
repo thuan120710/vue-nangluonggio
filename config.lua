@@ -1,6 +1,11 @@
 Config = {}
 
 -- ============================================
+-- NOTIFICATION SYSTEM
+-- ============================================
+Config.Notify = exports['f17notify']
+
+-- ============================================
 -- TEST MODE - Bật để test nhanh
 -- ============================================
 Config.TestMode = true -- Đổi thành false khi production
