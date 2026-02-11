@@ -1059,15 +1059,23 @@ body {
 }
 
 .btn-refuel {
-    background: linear-gradient(180deg, rgba(255, 153, 68, 0) 0%, rgba(255, 153, 68, 0.5) 100%);
-    border-color: #ff9944;
-    color: #ff9944;
     max-width: 16rem;
     padding: 1rem 2rem;
     font-size: 1.25rem;
     margin: 0 auto;
     transform: translateY(3px);
     white-space: nowrap;
+    border-radius: 0.625rem;
+    border: 1px solid #00FF51;
+    background: linear-gradient(180deg, rgba(0, 255, 81, 0.00) 0%, rgba(0, 255, 81, 0.50) 100%);
+    box-shadow: 0 0 10px 0 #00FF51;
+    color: #00FF51;
+    font-family: Goldman;
+    font-size: 1.25rem;
+    font-style: normal;
+    font-weight: 700;
+    line-height: normal;
+
 }
 
 .btn-refuel:hover {

@@ -314,6 +314,10 @@ export default {
           if (data.maxFuel !== undefined) maxFuel.value = data.maxFuel
           break
           
+        case 'updateOnDuty':
+          isOnDuty.value = data.onDuty
+          break
+          
         case 'outOfFuel':
           isOnDuty.value = false
           break

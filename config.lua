@@ -19,7 +19,7 @@ Config.RentalPrice = 200000 -- 200,000 IC để thuê trạm (trừ vào tienkho
 
 if Config.TestMode then
     -- TEST MODE: Expiry nhanh để test
-    Config.RentalDuration = 180 -- 60 giây = 1 phút (thay vì 7 ngày)
+    Config.RentalDuration = 1800 -- 60 giây = 1 phút (thay vì 7 ngày)
     Config.GracePeriod = 300 -- 30 giây (thay vì 4 giờ)
 else
     -- PRODUCTION: Thời gian thực
@@ -88,7 +88,7 @@ if Config.TestMode then
             minHours = 0,
             maxHours = 2/60, -- 2 phút = 0.033 giờ
             penalties = {
-                {chance = 100, systems = 1, damage = 10}
+                {chance = 100, systems = 1, damage = 50}
             }
         },
         -- 2-4 phút
@@ -96,7 +96,7 @@ if Config.TestMode then
             minHours = 2/60,
             maxHours = 4/60,
             penalties = {
-                {chance = 80, systems = 1, damage = 10},
+                {chance = 80, systems = 1, damage = 50},
                 {chance = 20, systems = {1, 2}, damage = 10}
             }
         },
@@ -234,7 +234,7 @@ Config.JerrycanItemName = "jerrycan" -- Tên item trong QBCore
 
 if Config.TestMode then
     -- TEST MODE: Tiêu hao xăng nhanh (mỗi phút = 1 giờ)
-    Config.FuelConsumptionCycle = 600 -- 1 phút = 1 fuel unit
+    Config.FuelConsumptionCycle = 60 -- 1 phút = 1 fuel unit
 else
     -- PRODUCTION: Tiêu hao xăng thực tế
     Config.FuelConsumptionCycle = 3600000 -- 1 giờ = 1 fuel unit

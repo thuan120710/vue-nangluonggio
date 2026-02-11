@@ -13,6 +13,9 @@ local no = exports['f17notify']
 local TurbineRentals = {}
 local TurbineExpiryGracePeriod = {} -- Lưu thời gian grace period (4 giờ để rút tiền)
 
+-- Dữ liệu tracking thời gian làm việc (anti-cheat)
+local PlayerWorkData = {} -- [citizenid] = {workStartTime, dailyWorkHours, lastDayReset}
+
 -- Khởi tạo: Reset GlobalState khi script start
 CreateThread(function()
     -- Reset tất cả trạm về trạng thái chưa thuê
@@ -136,9 +139,60 @@ local function CheckRentalExpiry(turbineId)
     return false
 end
 
+-- Helper: Reset daily work hours nếu qua ngày mới
+local function CheckAndResetDailyHours(citizenid)
+    local currentDay = GetCurrentDay()
+    
+    if not PlayerWorkData[citizenid] then
+        PlayerWorkData[citizenid] = {
+            workStartTime = 0,
+            dailyWorkHours = 0,
+            lastDayReset = currentDay
+        }
+        return
+    end
+    
+    -- Reset nếu qua ngày mới (6:00 sáng)
+    if PlayerWorkData[citizenid].lastDayReset ~= currentDay then
+        PlayerWorkData[citizenid].dailyWorkHours = 0
+        PlayerWorkData[citizenid].lastDayReset = currentDay
+    end
+end
+
+-- Helper: Validate số tiền rút có hợp lý không
+local function ValidateWithdrawAmount(citizenid, amount, clientWorkHours)
+    -- Kiểm tra work data tồn tại
+    if not PlayerWorkData[citizenid] then
+        return false, "NO_WORK_DATA"
+    end
+    
+    local workData = PlayerWorkData[citizenid]
+    
+    -- Tính thời gian làm việc thực tế từ server
+    local serverWorkHours = 0
+    if workData.workStartTime > 0 then
+        serverWorkHours = (os.time() - workData.workStartTime) / 3600
+    end
+    
+    -- So sánh với client (cho phép sai số 5%)
+    local timeDiff = math.abs(serverWorkHours - clientWorkHours)
+    if timeDiff > (clientWorkHours * 0.05 + 0.1) then -- 5% + 0.1 giờ buffer
+        return false, "TIME_MISMATCH"
+    end
+    
+    -- Tính max earnings có thể (BaseSalary * hours * 120% buffer cho bonus)
+    local maxPossibleEarnings = clientWorkHours * Config.BaseSalary * 1.2
+    
+    if amount > maxPossibleEarnings then
+        return false, "AMOUNT_TOO_HIGH"
+    end
+    
+    return true, "OK"
+end
+
 -- Event: Rút tiền (merge cả 2 loại: bình thường và grace period)
 RegisterNetEvent('windturbine:withdrawEarnings')
-AddEventHandler('windturbine:withdrawEarnings', function(amount, isGracePeriod, turbineId)
+AddEventHandler('windturbine:withdrawEarnings', function(amount, isGracePeriod, turbineId, clientWorkHours)
     local playerId = source
     local Player = QBCore.Functions.GetPlayer(playerId)
     
@@ -147,10 +201,34 @@ AddEventHandler('windturbine:withdrawEarnings', function(amount, isGracePeriod, 
         return
     end
     
+    local citizenid = Player.PlayerData.citizenid
+    
     -- Kiểm tra số tiền
     if not amount or amount <= 0 then
         TriggerClientEvent('windturbine:notify', playerId, '❌ Không có tiền để rút!', 'error')
         return
+    end
+    
+    -- ANTI-CHEAT: Validate số tiền với thời gian làm việc (chỉ khi không phải grace period)
+    if not isGracePeriod and clientWorkHours then
+        local isValid, reason = ValidateWithdrawAmount(citizenid, amount, clientWorkHours)
+        
+        if not isValid then
+            if reason == "TIME_MISMATCH" then
+                TriggerClientEvent('windturbine:notify', playerId, '❌ Lỗi đồng bộ thời gian! Vui lòng thử lại.', 'error')
+            elseif reason == "AMOUNT_TOO_HIGH" then
+                TriggerClientEvent('windturbine:notify', playerId, '❌ Số tiền không hợp lệ!', 'error')
+            else
+                TriggerClientEvent('windturbine:notify', playerId, '❌ Dữ liệu không hợp lệ!', 'error')
+            end
+            return
+        end
+        
+        -- Cập nhật daily work hours khi rút tiền
+        if PlayerWorkData[citizenid] then
+            PlayerWorkData[citizenid].dailyWorkHours = PlayerWorkData[citizenid].dailyWorkHours + clientWorkHours
+            PlayerWorkData[citizenid].workStartTime = 0 -- Reset work start time
+        end
     end
     
     -- Xử lý rút tiền trong grace period
@@ -422,6 +500,142 @@ AddEventHandler('windturbine:sendPhoneNotification', function(notifType, data)
     if message ~= "" then
         exports['lb-phone']:SendMessage('Trạm Điện Gió', tostring(phoneNumber), message, nil, nil, nil)
     end
+end)
+
+-- Helper: Lấy ngày hiện tại (format: số ngày từ epoch)
+-- Reset vào 6:00 sáng giờ Việt Nam (UTC+7)
+-- ĐỒNG BỘ VỚI CLIENT để cùng logic reset
+local function GetCurrentDay()
+    local timestamp = os.time()
+    -- Điều chỉnh để reset vào 6:00 sáng VN thay vì 00:00 VN
+    -- 6:00 VN = 23:00 UTC ngày hôm trước
+    -- Nên ta trừ đi 1 giờ (3600 giây) từ UTC+7
+    local vietnamOffset = (7 * 3600) - (6 * 3600) -- UTC+7 - 6 giờ = UTC+1
+    local adjustedTime = timestamp + vietnamOffset
+    local days = math.floor(adjustedTime / 86400)
+    return tostring(days) -- Trả về số ngày kể từ epoch
+end
+
+-- Helper: Reset daily work hours nếu qua ngày mới
+local function CheckAndResetDailyHours(citizenid)
+    local currentDay = GetCurrentDay()
+    
+    if not PlayerWorkData[citizenid] then
+        PlayerWorkData[citizenid] = {
+            workStartTime = 0,
+            dailyWorkHours = 0,
+            lastDayReset = currentDay
+        }
+        return
+    end
+    
+    -- Reset nếu qua ngày mới (6:00 sáng)
+    if PlayerWorkData[citizenid].lastDayReset ~= currentDay then
+        PlayerWorkData[citizenid].dailyWorkHours = 0
+        PlayerWorkData[citizenid].lastDayReset = currentDay
+    end
+end
+
+-- Helper: Validate số tiền rút có hợp lý không
+local function ValidateWithdrawAmount(citizenid, amount, clientWorkHours)
+    -- Kiểm tra work data tồn tại
+    if not PlayerWorkData[citizenid] then
+        return false, "NO_WORK_DATA"
+    end
+    
+    local workData = PlayerWorkData[citizenid]
+    
+    -- Tính thời gian làm việc thực tế từ server
+    local serverWorkHours = 0
+    if workData.workStartTime > 0 then
+        serverWorkHours = (os.time() - workData.workStartTime) / 3600
+    end
+    
+    -- So sánh với client (cho phép sai số 5%)
+    local timeDiff = math.abs(serverWorkHours - clientWorkHours)
+    if timeDiff > (clientWorkHours * 0.05 + 0.1) then -- 5% + 0.1 giờ buffer
+        return false, "TIME_MISMATCH"
+    end
+    
+    -- Tính max earnings có thể (BaseSalary * hours * 120% buffer cho bonus)
+    local maxPossibleEarnings = clientWorkHours * Config.BaseSalary * 1.2
+    
+    if amount > maxPossibleEarnings then
+        return false, "AMOUNT_TOO_HIGH"
+    end
+    
+    return true, "OK"
+end
+
+-- Event: Start Duty (với validation)
+RegisterNetEvent('windturbine:startDuty')
+AddEventHandler('windturbine:startDuty', function(turbineId)
+    local playerId = source
+    local Player = QBCore.Functions.GetPlayer(playerId)
+    
+    if not Player then
+        TriggerClientEvent('windturbine:startDutyFailed', playerId, 'SYSTEM_ERROR')
+        return
+    end
+    
+    local citizenid = Player.PlayerData.citizenid
+    
+    -- Reset daily hours nếu qua ngày mới
+    CheckAndResetDailyHours(citizenid)
+    
+    -- ANTI-CHEAT: Kiểm tra giới hạn thời gian
+    if PlayerWorkData[citizenid].dailyWorkHours >= Config.MaxDailyHours then
+        TriggerClientEvent('windturbine:startDutyFailed', playerId, 'DAILY_LIMIT')
+        return
+    end
+    
+    -- Lưu work start time
+    PlayerWorkData[citizenid].workStartTime = os.time()
+    
+    -- Thông báo thành công
+    TriggerClientEvent('windturbine:startDutySuccess', playerId)
+end)
+
+-- Event: Stop Duty (cập nhật work hours)
+RegisterNetEvent('windturbine:stopDuty')
+AddEventHandler('windturbine:stopDuty', function(workDuration)
+    local playerId = source
+    local Player = QBCore.Functions.GetPlayer(playerId)
+    
+    if not Player then return end
+    
+    local citizenid = Player.PlayerData.citizenid
+    
+    -- Cập nhật daily work hours
+    if PlayerWorkData[citizenid] and PlayerWorkData[citizenid].workStartTime > 0 then
+        -- Tính thời gian từ server để validate
+        local serverWorkDuration = (os.time() - PlayerWorkData[citizenid].workStartTime) / 3600
+        
+        -- Chấp nhận client duration nếu sai số < 5%
+        local timeDiff = math.abs(serverWorkDuration - workDuration)
+        if timeDiff <= (workDuration * 0.05 + 0.1) then
+            PlayerWorkData[citizenid].dailyWorkHours = PlayerWorkData[citizenid].dailyWorkHours + workDuration
+        else
+            -- Dùng server time nếu client không khớp
+            PlayerWorkData[citizenid].dailyWorkHours = PlayerWorkData[citizenid].dailyWorkHours + serverWorkDuration
+        end
+        
+        PlayerWorkData[citizenid].workStartTime = 0
+    end
+end)
+
+-- Callback: Lấy daily work hours từ server
+QBCore.Functions.CreateCallback('windturbine:getDailyWorkHours', function(source, cb)
+    local Player = QBCore.Functions.GetPlayer(source)
+    if not Player then
+        cb(0)
+        return
+    end
+    
+    local citizenid = Player.PlayerData.citizenid
+    CheckAndResetDailyHours(citizenid)
+    
+    cb(PlayerWorkData[citizenid].dailyWorkHours or 0)
 end)
 
 -- Helper: Đếm tổng số jerrycan

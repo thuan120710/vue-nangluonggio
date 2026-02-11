@@ -77,8 +77,7 @@
           class="btn btn-refuel"
           @click="$emit('refuel')"
         >
-          <span class="btn-icon">⛽</span>
-          ĐỔ XĂNG
+          ĐỔ XĂNG (4 CAN)
         </button>
 
         <!-- Start/Stop Button -->
@@ -273,6 +272,9 @@ export default {
   },
   emits: ['close', 'startDuty', 'stopDuty', 'repair', 'withdraw', 'refuel'],
   setup(props, { emit }) {
+    // DEV MODE: Bật để test UI hư hỏng
+    const DEV_MODE = ref(false)
+    
     const currentTime = ref(Math.floor(Date.now() / 1000))
     let timeInterval = null
     
@@ -412,6 +414,9 @@ export default {
     })
     
     const isOutOfFuel = computed(() => {
+      // DEV MODE: Luôn hiển thị nút đổ xăng để test UI
+      if (DEV_MODE.value) return true
+      
       return props.currentFuel <= 0
     })
     

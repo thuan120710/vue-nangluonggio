@@ -255,7 +255,7 @@ local function CalculateSystemProfit()
     return totalProfit
 end
 
--- Kiểm tra điều kiện sinh tiền (nếu 3 chỉ số < 30% hoặc hết xăng => máy ngừng hoạt động)
+-- Kiểm tra điều kiện sinh tiền (nếu 3 chỉ số <= 30% hoặc hết xăng => máy ngừng hoạt động)
 local function CanEarnMoney()
     -- Kiểm tra xăng trước
     if playerData.currentFuel <= 0 then
@@ -266,7 +266,7 @@ local function CanEarnMoney()
     local below30 = 0
     
     for _, value in pairs(systems) do
-        if value < 30 then below30 = below30 + 1 end
+        if value <= 30 then below30 = below30 + 1 end
     end
     
     if below30 >= 3 then 
@@ -316,6 +316,9 @@ local function StopDuty()
         playerData.dailyWorkHours = playerData.dailyWorkHours + workDuration
         playerData.onDuty = false
         isOnDuty = false
+        
+        -- Gửi work duration lên server để cập nhật
+        TriggerServerEvent('windturbine:stopDuty', workDuration)
     end
 end
 
@@ -484,44 +487,8 @@ RegisterNUICallback('startDuty', function(data, cb)
         return
     end
     
-    playerData.onDuty = true
-    playerData.workStartTime = GetCurrentTime()
-    playerData.lastEarning = GetCurrentTime()
-    playerData.lastPenalty = GetCurrentTime()
-    playerData.lastFuelConsumption = GetCurrentTime()
-    
-    isOnDuty = true
-    currentSystems = playerData.systems
-    currentEfficiency = CalculateEfficiency()
-    currentEarnings = playerData.earningsPool
-    
-    SendNUIMessage({
-        action = 'updateEarningsPool',
-        earnings = currentEarnings
-    })
-    SendNUIMessage({
-        action = 'updateWorkTime',
-        workHours = 0,
-        maxHours = Config.MaxDailyHours
-    })
-    SendNUIMessage({
-        action = 'updateFuel',
-        currentFuel = playerData.currentFuel,
-        maxFuel = Config.MaxFuel
-    })
-    
-    -- Update UI (systems, efficiency, earningRate)
-    UpdateUI()
-    
-    no:Notify('✅ Đã bắt đầu ca làm việc tại cối xay gió!', 'success', 3000)
-    PlaySound(-1, "CHECKPOINT_PERFECT", "HUD_MINI_GAME_SOUNDSET", 0, 0, 1)
-    
-    -- Gửi tin nhắn chào mừng qua lb-phone
-    local actualEarningRate = CalculateSystemProfit() * 4
-    TriggerServerEvent('windturbine:sendPhoneNotification', 'welcome', {
-        systems = playerData.systems,
-        earningRate = actualEarningRate
-    })
+    -- Trigger server validation trước khi start duty
+    TriggerServerEvent('windturbine:startDuty', turbineId)
     
     cb('ok')
 end)
@@ -683,8 +650,14 @@ RegisterNUICallback('withdrawEarnings', function(data, cb)
     -- Kiểm tra xem có phải rút tiền grace period không
     local isGracePeriod = data.isGracePeriod or false
     
-    -- Gửi request lên server (server sẽ trả về event để reset earnings pool)
-    TriggerServerEvent('windturbine:withdrawEarnings', amount, isGracePeriod, turbineId)
+    -- Tính thời gian làm việc hiện tại để gửi lên server validation
+    local currentWorkHours = 0
+    if playerData.onDuty and playerData.workStartTime > 0 then
+        currentWorkHours = (GetCurrentTime() - playerData.workStartTime) / 1000 / 3600
+    end
+    
+    -- Gửi request lên server (server sẽ validate và trả về event để reset earnings pool)
+    TriggerServerEvent('windturbine:withdrawEarnings', amount, isGracePeriod, turbineId, currentWorkHours)
     
     PlaySound(-1, "PICK_UP", "HUD_FRONTEND_DEFAULT_SOUNDSET", 0, 0, 1)
     cb('ok')
@@ -746,6 +719,61 @@ end)
 --     -- StateBag đã tự động cập nhật, không cần làm gì
 --     no:Notify('❌ Không thể thuê trạm này!', 'error', 3000)
 -- end)
+
+RegisterNetEvent('windturbine:startDutySuccess')
+AddEventHandler('windturbine:startDutySuccess', function()
+    -- Server đã validate, bây giờ mới thực sự start duty
+    playerData.onDuty = true
+    playerData.workStartTime = GetCurrentTime()
+    playerData.lastEarning = GetCurrentTime()
+    playerData.lastPenalty = GetCurrentTime()
+    playerData.lastFuelConsumption = GetCurrentTime()
+    
+    isOnDuty = true
+    currentSystems = playerData.systems
+    currentEfficiency = CalculateEfficiency()
+    currentEarnings = playerData.earningsPool
+    
+    SendNUIMessage({
+        action = 'updateEarningsPool',
+        earnings = currentEarnings
+    })
+    SendNUIMessage({
+        action = 'updateWorkTime',
+        workHours = 0,
+        maxHours = Config.MaxDailyHours
+    })
+    SendNUIMessage({
+        action = 'updateFuel',
+        currentFuel = playerData.currentFuel,
+        maxFuel = Config.MaxFuel
+    })
+    
+    -- Update UI (systems, efficiency, earningRate)
+    UpdateUI()
+    
+    no:Notify('✅ Đã bắt đầu ca làm việc tại cối xay gió!', 'success', 3000)
+    PlaySound(-1, "CHECKPOINT_PERFECT", "HUD_MINI_GAME_SOUNDSET", 0, 0, 1)
+    
+    -- Gửi tin nhắn chào mừng qua lb-phone
+    local actualEarningRate = CalculateSystemProfit() * 4
+    TriggerServerEvent('windturbine:sendPhoneNotification', 'welcome', {
+        systems = playerData.systems,
+        earningRate = actualEarningRate
+    })
+end)
+
+RegisterNetEvent('windturbine:startDutyFailed')
+AddEventHandler('windturbine:startDutyFailed', function(reason)
+    if reason == 'DAILY_LIMIT' then
+        no:Notify('❌ Đã đạt giới hạn 12 giờ/ngày! Hãy quay lại sau 6:00 sáng.', 'error', 5000)
+        SendNUIMessage({
+            action = 'workLimitReached'
+        })
+    else
+        no:Notify('❌ Không thể bắt đầu ca làm việc!', 'error', 5000)
+    end
+end)
 
 RegisterNetEvent('windturbine:withdrawSuccess')
 AddEventHandler('windturbine:withdrawSuccess', function(amount, isGracePeriod)
@@ -850,13 +878,13 @@ AddEventHandler('windturbine:gracePeriodExpired', function()
     CloseUI()
 end)
 
--- Thread: Cập nhật thời gian làm việc liên tục (mỗi giây)
+-- Thread: Cập nhật thời gian làm việc liên tục (OPTIMIZATION: 1 phút/lần)
 CreateThread(function()
     while true do
-        Wait(1000) -- Cập nhật mỗi giây
-        
-        -- KHÔNG hoạt động khi đang grace period
+        -- OPTIMIZATION: Chỉ chạy khi cần thiết
         if playerData.onDuty and not rentalStatus.isGracePeriod then
+            Wait(60000) -- Cập nhật mỗi 1 phút (đủ chính xác cho thời gian tính bằng giờ)
+            
             local currentTime = GetCurrentTime()
             local currentWorkHours = (currentTime - playerData.workStartTime) / 1000 / 3600
             
@@ -866,147 +894,180 @@ CreateThread(function()
                 workHours = currentWorkHours,
                 maxHours = Config.MaxDailyHours
             })
+        else
+            Wait(60000) -- Khi không làm việc, cũng check mỗi 1 phút
         end
     end
 end)
 
--- Thread: Sinh tiền và penalty (Chuyển từ server)
+-- Thread: Sinh tiền và penalty (Tối ưu hóa adaptive)
 CreateThread(function()
     while true do
-        Wait(5000) -- Check mỗi 5 giây để chính xác hơn
+        -- OPTIMIZATION: Chỉ check khi onDuty, adaptive wait time dựa trên thời gian còn lại
+        if not playerData.onDuty or rentalStatus.isGracePeriod then
+            Wait(10000) -- Wait 10s khi không làm việc
+            goto continue
+        end
         
-        -- KHÔNG hoạt động khi đang grace period
-        if playerData.onDuty and not rentalStatus.isGracePeriod then
-            local currentTime = GetCurrentTime()
+        -- Tính thời gian còn lại đến giới hạn
+        local currentTime = GetCurrentTime()
+        local currentWorkHours = (currentTime - playerData.workStartTime) / 1000 / 3600
+        local totalDailyHours = playerData.dailyWorkHours + currentWorkHours
+        local hoursRemaining = Config.MaxDailyHours - totalDailyHours
+        
+        -- ADAPTIVE WAIT: Điều chỉnh tần suất check dựa trên thời gian còn lại
+        local waitTime
+        if hoursRemaining <= 0.1 then -- Còn < 6 phút (0.1 giờ)
+            waitTime = 2000 -- Check mỗi 2 giây (rất gần giới hạn)
+        elseif hoursRemaining <= 0.5 then -- Còn < 30 phút
+            waitTime = 5000 -- Check mỗi 5 giây
+        elseif hoursRemaining <= 1 then -- Còn < 1 giờ
+            waitTime = 10000 -- Check mỗi 10 giây
+        elseif hoursRemaining <= 2 then -- Còn < 2 giờ
+            waitTime = 30000 -- Check mỗi 30 giây
+        else
+            waitTime = 60000 -- Check mỗi 1 phút (còn nhiều thời gian)
+        end
+        
+        Wait(waitTime)
+        
+        -- Cập nhật lại thời gian sau khi wait
+        currentTime = GetCurrentTime()
+        currentWorkHours = (currentTime - playerData.workStartTime) / 1000 / 3600
+        playerData.totalWorkHours = currentWorkHours
+        
+        -- Kiểm tra giới hạn thời gian (bao gồm cả thời gian ca hiện tại)
+        totalDailyHours = playerData.dailyWorkHours + currentWorkHours
+        
+        -- Kiểm tra nếu vượt quá giới hạn ngày
+        if totalDailyHours >= Config.MaxDailyHours then
+            -- Tự động kết thúc ca khi hết giờ
+            local workDuration = currentWorkHours
+            playerData.dailyWorkHours = totalDailyHours
+            playerData.onDuty = false
+            isOnDuty = false
             
-            -- Tính thời gian làm việc hiện tại (milliseconds -> hours)
-            local currentWorkHours = (currentTime - playerData.workStartTime) / 1000 / 3600
-            playerData.totalWorkHours = currentWorkHours
+            -- Gửi work duration lên server
+            TriggerServerEvent('windturbine:stopDuty', workDuration)
             
-            -- Kiểm tra giới hạn thời gian (bao gồm cả thời gian ca hiện tại)
-            local totalDailyHours = playerData.dailyWorkHours + currentWorkHours
+            no:Notify('⏰ Đã hết giờ làm việc trong ngày! Ca làm việc tự động kết thúc.', 'error', 5000)
             
-            -- Kiểm tra nếu vượt quá giới hạn ngày
-            if totalDailyHours >= Config.MaxDailyHours then
-                -- Tự động kết thúc ca khi hết giờ
-                playerData.onDuty = false
-                isOnDuty = false
-                
-                no:Notify('⏰ Đã hết giờ làm việc trong ngày! Ca làm việc tự động kết thúc.', 'error', 5000)
-                
-                -- Gửi báo cáo ca làm việc qua lb-phone
-                TriggerServerEvent('windturbine:sendPhoneNotification', 'dailyLimit', {
-                    totalDailyHours = totalDailyHours,
-                    earningsPool = playerData.earningsPool,
-                    efficiency = CalculateEfficiency()
-                })
-                
-                -- Cập nhật thời gian làm việc
-                playerData.dailyWorkHours = totalDailyHours
-                
-                SendNUIMessage({
-                    action = 'resetToInitialState'
-                })
-                CloseUI()
-                
-                goto continue
-            end
+            -- Gửi báo cáo ca làm việc qua lb-phone
+            TriggerServerEvent('windturbine:sendPhoneNotification', 'dailyLimit', {
+                totalDailyHours = totalDailyHours,
+                earningsPool = playerData.earningsPool,
+                efficiency = CalculateEfficiency()
+            })
             
-            -- Sinh tiền mỗi chu kỳ
-            if currentTime - playerData.lastEarning >= Config.EarningCycle then
-                local canEarn, status = CanEarnMoney()
+            SendNUIMessage({
+                action = 'resetToInitialState'
+            })
+            CloseUI()
+            
+            goto continue
+        end
+        
+        -- Sinh tiền mỗi chu kỳ
+        if currentTime - playerData.lastEarning >= Config.EarningCycle then
+            local canEarn, status = CanEarnMoney()
+            
+            if canEarn then
+                local earnings = CalculateEarnings()
                 
-                if canEarn then
-                    local earnings = CalculateEarnings()
+                if earnings > 0 then
+                    playerData.earningsPool = playerData.earningsPool + earnings
+                    playerData.lastEarning = currentTime
                     
-                    if earnings > 0 then
-                        playerData.earningsPool = playerData.earningsPool + earnings
-                        playerData.lastEarning = currentTime
-                        
-                        currentEarnings = playerData.earningsPool
-                        
-                        SendNUIMessage({
-                            action = 'updateEarnings',
-                            earnings = currentEarnings
-                        })
-                        
-                        -- Thông báo thu nhập
-                        local efficiency = CalculateEfficiency()
-                        if efficiency >= 80 then
-                            no:Notify(string.format('💵 +$%d IC | Hiệu suất tuyệt vời!', math.floor(earnings)), 'success', 2000)
-                            
-                            -- Gửi tin nhắn khen thưởng qua lb-phone (chỉ khi hiệu suất cao)
-                            TriggerServerEvent('windturbine:sendPhoneNotification', 'bonus', {
-                                earnings = earnings,
-                                efficiency = efficiency,
-                                earningsPool = playerData.earningsPool
-                            })
-                        elseif efficiency >= 50 then
-                            no:Notify(string.format('💵 +$%d IC', math.floor(earnings)), 'primary', 2000)
-                        end
-                    end
-                else
-                    -- Máy ngừng hoạt động
-                    no:Notify('🚨 Máy ngừng hoạt động! 3 chỉ số dưới 30%! Cần sửa chữa ngay!', 'error', 5000)
+                    currentEarnings = playerData.earningsPool
                     
-                    -- Gửi cảnh báo khẩn cấp qua lb-phone
-                    local criticalSystems = {}
-                    for name, value in pairs(playerData.systems) do
-                        if value < 30 then
-                            table.insert(criticalSystems, {name = name, value = value})
-                        end
-                    end
-                    
-                    TriggerServerEvent('windturbine:sendPhoneNotification', 'emergency', {
-                        criticalSystems = criticalSystems
+                    SendNUIMessage({
+                        action = 'updateEarnings',
+                        earnings = currentEarnings
                     })
                     
+                    -- Thông báo thu nhập
+                    local efficiency = CalculateEfficiency()
+                    if efficiency >= 80 then
+                        no:Notify(string.format('💵 +$%d IC | Hiệu suất tuyệt vời!', math.floor(earnings)), 'success', 2000)
+                        
+                        -- Gửi tin nhắn khen thưởng qua lb-phone (chỉ khi hiệu suất cao)
+                        TriggerServerEvent('windturbine:sendPhoneNotification', 'bonus', {
+                            earnings = earnings,
+                            efficiency = efficiency,
+                            earningsPool = playerData.earningsPool
+                        })
+                    elseif efficiency >= 50 then
+                        no:Notify(string.format('💵 +$%d IC', math.floor(earnings)), 'primary', 2000)
+                    end
+                end
+            else
+                -- Máy ngừng hoạt động - TẮT DUTY NHƯNG GIỮ UI
+                if status == "STOPPED" then
+                    -- Máy vẫn chạy nhưng không sinh tiền (3 chỉ số <= 30%)
+                    -- KHÔNG tắt duty, chỉ bỏ qua chu kỳ sinh tiền này
+                    
+                    -- Thông báo 1 lần duy nhất (tránh spam)
+                    if currentTime - lastNotifyTime > 60000 then -- Chỉ thông báo mỗi 1 phút
+                        no:Notify('🚨 Cảnh báo: 3 chỉ số <= 30%! Không sinh tiền. Hãy sửa chữa!', 'error', 5000)
+                        lastNotifyTime = currentTime
+                    end
+                    
+                    playerData.lastEarning = currentTime
+                elseif status == "OUT_OF_FUEL" then
+                    -- Hết xăng - logic xử lý ở phần fuel consumption
                     playerData.lastEarning = currentTime
                 end
             end
+        end
+        
+        -- Áp dụng penalty mỗi giờ (CHỈ CÓ PENALTY, KHÔNG CÓ DEGRADE TỰ NHIÊN)
+        -- KHÔNG áp dụng penalty khi máy ngừng hoạt động (3 chỉ số <= 30% hoặc hết xăng)
+        if currentTime - playerData.lastPenalty >= Config.PenaltyCycle then
+            local canEarn, status = CanEarnMoney()
             
-            -- Áp dụng penalty mỗi giờ (CHỈ CÓ PENALTY, KHÔNG CÓ DEGRADE TỰ NHIÊN)
-            if currentTime - playerData.lastPenalty >= Config.PenaltyCycle then
-                -- Áp dụng penalty
+            -- Chỉ áp dụng penalty khi máy đang hoạt động bình thường
+            if canEarn then
                 ApplyPenalty()
-                playerData.lastPenalty = currentTime
             end
             
-            -- Tiêu hao xăng mỗi chu kỳ
-            if currentTime - playerData.lastFuelConsumption >= Config.FuelConsumptionCycle then
-                if playerData.currentFuel > 0 then
-                    playerData.currentFuel = playerData.currentFuel - 1
+            playerData.lastPenalty = currentTime
+        end
+        
+        -- Tiêu hao xăng mỗi chu kỳ (KHI ĐANG HOẠT ĐỘNG - kể cả khi hư hỏng)
+        if currentTime - playerData.lastFuelConsumption >= Config.FuelConsumptionCycle then
+            -- Tiêu hao xăng khi máy đang chạy (onDuty = true), kể cả khi 3 chỉ số <= 30%
+            if playerData.onDuty and playerData.currentFuel > 0 then
+                playerData.currentFuel = playerData.currentFuel - 1
+                
+                -- Cập nhật UI
+                SendNUIMessage({
+                    action = 'updateFuel',
+                    currentFuel = playerData.currentFuel,
+                    maxFuel = Config.MaxFuel
+                })
+                
+                -- Cảnh báo khi sắp hết xăng
+                if playerData.currentFuel == 10 then
+                    no:Notify('⚠️ Cảnh báo: Còn 10 giờ xăng!', 'error', 5000)
+                elseif playerData.currentFuel == 5 then
+                    no:Notify('🚨 Khẩn cấp: Còn 5 giờ xăng!', 'error', 5000)
+                elseif playerData.currentFuel == 0 then
+                    -- Hết xăng -> Tắt máy
+                    playerData.onDuty = false
+                    isOnDuty = false
                     
-                    -- Cập nhật UI
+                    no:Notify('⛽ Hết xăng! Máy đã dừng hoạt động.', 'error', 7000)
+                    
                     SendNUIMessage({
-                        action = 'updateFuel',
-                        currentFuel = playerData.currentFuel,
-                        maxFuel = Config.MaxFuel
+                        action = 'outOfFuel'
                     })
                     
-                    -- Cảnh báo khi sắp hết xăng
-                    if playerData.currentFuel == 10 then
-                        no:Notify('⚠️ Cảnh báo: Còn 10 giờ xăng!', 'error', 5000)
-                    elseif playerData.currentFuel == 5 then
-                        no:Notify('🚨 Khẩn cấp: Còn 5 giờ xăng!', 'error', 5000)
-                    elseif playerData.currentFuel == 0 then
-                        -- Hết xăng -> Tắt máy
-                        playerData.onDuty = false
-                        isOnDuty = false
-                        
-                        no:Notify('⛽ Hết xăng! Máy đã dừng hoạt động.', 'error', 7000)
-                        
-                        SendNUIMessage({
-                            action = 'outOfFuel'
-                        })
-                        
-                        -- Gửi thông báo qua phone
-                        TriggerServerEvent('windturbine:sendPhoneNotification', 'outOfFuel', {})
-                    end
-                    
-                    playerData.lastFuelConsumption = currentTime
+                    -- Gửi thông báo qua phone
+                    TriggerServerEvent('windturbine:sendPhoneNotification', 'outOfFuel', {})
                 end
             end
+            
+            playerData.lastFuelConsumption = currentTime
         end
         
         ::continue::
@@ -1126,6 +1187,9 @@ CreateThread(function()
                         playerData.dailyWorkHours = playerData.dailyWorkHours + workDuration
                         playerData.onDuty = false
                         isOnDuty = false
+                        
+                        -- Gửi work duration lên server
+                        TriggerServerEvent('windturbine:stopDuty', workDuration)
                     end
                     
                     SetNuiFocus(false, false)
