@@ -1,20 +1,11 @@
-QBCore = exports['qb-core']:GetCoreObject()
-local no = exports['f17notify']
-
--- ============================================
--- SERVER XỬ LÝ:
--- 1. Rút tiền (withdrawEarnings)
--- 2. Trừ tiền thuê trạm (rentTurbine)
--- 3. Gửi phone notifications
--- 4. Quản lý rental data (StateBag - broadcast tự động cho 500 người)
--- ============================================
-
--- Dữ liệu thuê trạm (lưu ở server)
 local TurbineRentals = {}
 local TurbineExpiryGracePeriod = {} -- Lưu thời gian grace period (4 giờ để rút tiền)
 
 -- Dữ liệu tracking thời gian làm việc (anti-cheat)
 local PlayerWorkData = {} -- [citizenid] = {workStartTime, dailyWorkHours, lastDayReset}
+
+-- SECURITY FIX: Server-side earnings tracking
+local PlayerEarnings = {} -- [citizenid] = {earningsPool, systems, lastEarning, lastPenalty, lastFuelConsumption, currentFuel, onDuty}
 
 -- Khởi tạo: Reset GlobalState khi script start
 CreateThread(function()
@@ -77,14 +68,17 @@ local function CheckRentalExpiry(turbineId)
         
         -- Nếu hết grace period (4 giờ), reset hoàn toàn
         if currentTime >= graceData.withdrawDeadline then
+            -- SECURITY FIX: Reset PlayerEarnings khi grace period hết
+            if graceData.citizenid and PlayerEarnings[graceData.citizenid] then
+                PlayerEarnings[graceData.citizenid] = nil
+            end
+            
             TurbineExpiryGracePeriod[turbineId] = nil
             BroadcastRentalStatus(turbineId)
             
             -- Thông báo cho owner nếu đang online và trigger reset data
             if graceData.playerId then
-                TriggerClientEvent('windturbine:notify', graceData.playerId, 
-                    '⚠️ Hết thời gian rút tiền! Trạm đã được reset.', 
-                    'error', 5000)
+                no:Notify(graceData.playerId, '⚠️ Hết thời gian rút tiền! Trạm đã được reset.', 'error', 5000)
                 
                 -- Trigger event để client reset toàn bộ data
                 TriggerClientEvent('windturbine:gracePeriodExpired', graceData.playerId)
@@ -121,9 +115,7 @@ local function CheckRentalExpiry(turbineId)
         -- Thông báo cho owner nếu đang online
         if rentalData.playerId then
             local gracePeriodText = Config.TestMode and "30 giây" or "4 giờ"
-            TriggerClientEvent('windturbine:notify', rentalData.playerId, 
-                string.format('⚠️ Hết thời hạn thuê! Bạn có %s để rút tiền.', gracePeriodText), 
-                'error', 8000)
+            no:Notify(rentalData.playerId, string.format('⚠️ Hết thời hạn thuê! Bạn có %s để rút tiền.', gracePeriodText), 'error', 8000)
             
             -- Gửi phone notification
             local phoneNumber = exports["lb-phone"]:GetEquippedPhoneNumber(rentalData.playerId)
@@ -159,102 +151,118 @@ local function CheckAndResetDailyHours(citizenid)
     end
 end
 
--- Helper: Validate số tiền rút có hợp lý không
-local function ValidateWithdrawAmount(citizenid, amount, clientWorkHours)
-    -- Kiểm tra work data tồn tại
-    if not PlayerWorkData[citizenid] then
-        return false, "NO_WORK_DATA"
+-- SECURITY FIX: Server-side calculation functions
+local function CalculateSystemProfit(systems)
+    local totalProfit = 0
+    
+    for systemName, value in pairs(systems) do
+        local systemProfit = Config.BaseSalary * (Config.SystemProfitContribution / 100)
+        
+        if value <= 30 then
+            systemProfit = 0
+        else
+            systemProfit = systemProfit * (value / 100)
+        end
+        
+        totalProfit = totalProfit + systemProfit
     end
     
-    local workData = PlayerWorkData[citizenid]
-    
-    -- Tính thời gian làm việc thực tế từ server
-    local serverWorkHours = 0
-    if workData.workStartTime > 0 then
-        serverWorkHours = (os.time() - workData.workStartTime) / 3600
-    end
-    
-    -- So sánh với client (cho phép sai số 5%)
-    local timeDiff = math.abs(serverWorkHours - clientWorkHours)
-    if timeDiff > (clientWorkHours * 0.05 + 0.1) then -- 5% + 0.1 giờ buffer
-        return false, "TIME_MISMATCH"
-    end
-    
-    -- Tính max earnings có thể (BaseSalary * hours * 120% buffer cho bonus)
-    local maxPossibleEarnings = clientWorkHours * Config.BaseSalary * 1.2
-    
-    if amount > maxPossibleEarnings then
-        return false, "AMOUNT_TOO_HIGH"
-    end
-    
-    return true, "OK"
+    return totalProfit
 end
 
--- Event: Rút tiền (merge cả 2 loại: bình thường và grace period)
+local function CanEarnMoney(systems, currentFuel)
+    if currentFuel <= 0 then
+        return false, "OUT_OF_FUEL"
+    end
+    
+    local below30 = 0
+    for _, value in pairs(systems) do
+        if value <= 30 then below30 = below30 + 1 end
+    end
+    
+    if below30 >= 3 then 
+        return false, "STOPPED"
+    end
+    
+    return true, "RUNNING"
+end
+
+local function InitPlayerEarnings(citizenid)
+    if not PlayerEarnings[citizenid] then
+        PlayerEarnings[citizenid] = {
+            earningsPool = 0,
+            systems = {
+                stability = Config.InitialSystemValue,
+                electric = Config.InitialSystemValue,
+                lubrication = Config.InitialSystemValue,
+                blades = Config.InitialSystemValue,
+                safety = Config.InitialSystemValue
+            },
+            lastEarning = 0,
+            lastPenalty = 0,
+            lastFuelConsumption = 0,
+            currentFuel = 0,
+            onDuty = false
+        }
+    end
+end
+
+-- SECURITY FIX: Event rút tiền - Server tính toán số tiền + VALIDATE TURBINE ID
 RegisterNetEvent('windturbine:withdrawEarnings')
-AddEventHandler('windturbine:withdrawEarnings', function(amount, isGracePeriod, turbineId, clientWorkHours)
+AddEventHandler('windturbine:withdrawEarnings', function(isGracePeriod, turbineId)
     local playerId = source
     local Player = QBCore.Functions.GetPlayer(playerId)
-    
-    if not Player then
-        TriggerClientEvent('windturbine:notify', playerId, '❌ Lỗi hệ thống!', 'error')
-        return
-    end
+    if not Player then return end
     
     local citizenid = Player.PlayerData.citizenid
+    InitPlayerEarnings(citizenid)
     
-    -- Kiểm tra số tiền
-    if not amount or amount <= 0 then
-        TriggerClientEvent('windturbine:notify', playerId, '❌ Không có tiền để rút!', 'error')
+    -- SECURITY: Server tính toán số tiền, KHÔNG tin client
+    local amount = math.floor(PlayerEarnings[citizenid].earningsPool)
+    
+    if amount <= 0 then
+        no:Notify(playerId, 'Không có tiền để rút!', 'error', 3000)
         return
     end
     
-    -- ANTI-CHEAT: Validate số tiền với thời gian làm việc (chỉ khi không phải grace period)
-    if not isGracePeriod and clientWorkHours then
-        local isValid, reason = ValidateWithdrawAmount(citizenid, amount, clientWorkHours)
-        
-        if not isValid then
-            if reason == "TIME_MISMATCH" then
-                TriggerClientEvent('windturbine:notify', playerId, '❌ Lỗi đồng bộ thời gian! Vui lòng thử lại.', 'error')
-            elseif reason == "AMOUNT_TOO_HIGH" then
-                TriggerClientEvent('windturbine:notify', playerId, '❌ Số tiền không hợp lệ!', 'error')
-            else
-                TriggerClientEvent('windturbine:notify', playerId, '❌ Dữ liệu không hợp lệ!', 'error')
+    if isGracePeriod and turbineId then
+        -- SECURITY FIX: Validate turbineId
+        local validTurbineId = false
+        for _, turbineData in ipairs(Config.TurbineLocations) do
+            if turbineData.id == turbineId then
+                validTurbineId = true
+                break
             end
+        end
+        
+        if not validTurbineId then
+            no:Notify(playerId, 'Trạm không hợp lệ!', 'error', 3000)
             return
         end
         
-        -- Cập nhật daily work hours khi rút tiền
-        if PlayerWorkData[citizenid] then
-            PlayerWorkData[citizenid].dailyWorkHours = PlayerWorkData[citizenid].dailyWorkHours + clientWorkHours
-            PlayerWorkData[citizenid].workStartTime = 0 -- Reset work start time
-        end
-    end
-    
-    -- Xử lý rút tiền trong grace period
-    if isGracePeriod and turbineId then
-        -- Kiểm tra grace period
         CheckRentalExpiry(turbineId)
         local graceData = TurbineExpiryGracePeriod[turbineId]
         
         if not graceData then
-            TriggerClientEvent('windturbine:notify', playerId, '❌ Không có tiền để rút!', 'error')
+            no:Notify(playerId, 'Không có tiền để rút!', 'error', 3000)
             return
         end
         
-        -- Kiểm tra owner
-        local citizenid = Player.PlayerData.citizenid
         if graceData.citizenid ~= citizenid then
-            TriggerClientEvent('windturbine:notify', playerId, '❌ Bạn không phải chủ trạm này!', 'error')
+            no:Notify(playerId, 'Bạn không phải chủ trạm này!', 'error', 3000)
             return
         end
         
-        -- Reset trạm về trạng thái có thể thuê lại
+        -- Reset trạm và earnings
         TurbineExpiryGracePeriod[turbineId] = nil
         BroadcastRentalStatus(turbineId)
+        PlayerEarnings[citizenid] = nil
+    else
+        -- Rút tiền bình thường - chỉ reset earnings pool
+        PlayerEarnings[citizenid].earningsPool = 0
     end
     
-    -- Rút tiền - Thêm tiền khóa
+    -- Rút tiền
     Player.Functions.AddMoney('tienkhoa', amount)
     TriggerClientEvent('windturbine:withdrawSuccess', playerId, amount, isGracePeriod)
     
@@ -279,14 +287,13 @@ AddEventHandler('windturbine:withdrawEarnings', function(amount, isGracePeriod, 
     end
 end)
 
--- Event: Thuê trạm (chỉ trừ tiền)
+-- Event: Thuê trạm (chỉ trừ tiền) - SECURITY FIX: Validate rental price
 RegisterNetEvent('windturbine:rentTurbine')
 AddEventHandler('windturbine:rentTurbine', function(turbineId, rentalPrice)
     local playerId = source
     local Player = QBCore.Functions.GetPlayer(playerId)
-    
+
     if not Player then
-        TriggerClientEvent('windturbine:notify', playerId, '❌ Lỗi hệ thống!', 'error')
         TriggerClientEvent('windturbine:rentFailed', playerId)
         return
     end
@@ -301,7 +308,7 @@ AddEventHandler('windturbine:rentTurbine', function(turbineId, rentalPrice)
     end
     
     if not validTurbineId then
-        TriggerClientEvent('windturbine:notify', playerId, '❌ Trạm không hợp lệ!', 'error')
+        no:Notify(playerId, 'Trạm không hợp lệ!', 'error', 3000)
         TriggerClientEvent('windturbine:rentFailed', playerId)
         return
     end
@@ -311,9 +318,7 @@ AddEventHandler('windturbine:rentTurbine', function(turbineId, rentalPrice)
     -- Kiểm tra xem player đã thuê trạm nào chưa
     for tId, rentalData in pairs(TurbineRentals) do
         if rentalData.citizenid == citizenid then
-            TriggerClientEvent('windturbine:notify', playerId, 
-                '❌ Bạn đã thuê một trạm khác rồi! Không thể thuê nhiều trạm cùng lúc.', 
-                'error', 5000)
+            no:Notify(playerId, 'Bạn đã thuê một trạm khác rồi! Không thể thuê nhiều trạm cùng lúc.', 'error', 3000)
             TriggerClientEvent('windturbine:rentFailed', playerId)
             return
         end
@@ -322,9 +327,7 @@ AddEventHandler('windturbine:rentTurbine', function(turbineId, rentalPrice)
     -- Kiểm tra xem player có đang trong grace period của trạm nào không
     for tId, graceData in pairs(TurbineExpiryGracePeriod) do
         if graceData.citizenid == citizenid then
-            TriggerClientEvent('windturbine:notify', playerId, 
-                '❌ Bạn cần rút tiền từ trạm cũ trước khi thuê trạm mới!', 
-                'error', 5000)
+            no:Notify(playerId, 'Bạn cần rút tiền từ trạm cũ trước khi thuê trạm mới!', 'error', 3000)
             TriggerClientEvent('windturbine:rentFailed', playerId)
             return
         end
@@ -334,16 +337,22 @@ AddEventHandler('windturbine:rentTurbine', function(turbineId, rentalPrice)
     CheckRentalExpiry(turbineId)
     if TurbineRentals[turbineId] then
         local ownerName = TurbineRentals[turbineId].ownerName
-        TriggerClientEvent('windturbine:notify', playerId, 
-            string.format('❌ Trạm này đã được thuê bởi %s!', ownerName), 
-            'error', 5000)
+        no:Notify(playerId, string.format('❌ Trạm này đã được thuê bởi %s!', ownerName), 'error', 5000)
         TriggerClientEvent('windturbine:rentFailed', playerId)
         return
     end
     
-    -- Validate rentalPrice
+    -- SECURITY FIX: Validate rentalPrice matches Config
+    if rentalPrice ~= Config.RentalPrice then
+        print(string.format('[CHEAT DETECTED] Player %s tried to rent with price %d instead of %d', citizenid, rentalPrice, Config.RentalPrice))
+        no:Notify(playerId, '❌ Lỗi giá thuê!', 'error')
+        TriggerClientEvent('windturbine:rentFailed', playerId)
+        return
+    end
+    
+    -- Validate rentalPrice type
     if rentalPrice == nil or type(rentalPrice) ~= "number" or rentalPrice < 0 then
-        TriggerClientEvent('windturbine:notify', playerId, '❌ Lỗi giá thuê!', 'error')
+        no:Notify(playerId, '❌ Lỗi giá thuê!', 'error')
         TriggerClientEvent('windturbine:rentFailed', playerId)
         return
     end
@@ -354,35 +363,27 @@ AddEventHandler('windturbine:rentTurbine', function(turbineId, rentalPrice)
     local totalMoney = tienkhoa + bank
     
     if rentalPrice > 0 and totalMoney < rentalPrice then
-        TriggerClientEvent('windturbine:notify', playerId, 
-            string.format('❌ Không đủ tiền! Cần $%s IC (Bạn có: $%s IC + $%s Bank)', 
-                string.format("%d", rentalPrice),
-                string.format("%d", tienkhoa),
-                string.format("%d", bank)), 
-            'error', 7000)
+        no:Notify(playerId, string.format('Bạn không đủ tiền (Cần $%s IC)', string.format("%d", rentalPrice)), 'error', 7000)
         TriggerClientEvent('windturbine:rentFailed', playerId)
         return
     end
     
-    -- Trừ tiền: Ưu tiên trừ tiền khóa trước, thiếu thì trừ bank
     if rentalPrice > 0 then
         if tienkhoa >= rentalPrice then
-            -- Đủ tiền khóa, chỉ trừ tiền khóa
-            Player.Functions.RemoveMoney('tienkhoa', rentalPrice)
+            Player.Functions.RemoveMoney('tienkhoa', rentalPrice, citizenid..' Thuê trạm điện gió #'..turbineId..' | Tiền khoá')
         else
-            -- Không đủ tiền khóa, trừ hết tiền khóa + phần còn lại từ bank
             local remainingAmount = rentalPrice - tienkhoa
             if tienkhoa > 0 then
-                Player.Functions.RemoveMoney('tienkhoa', tienkhoa)
+                Player.Functions.RemoveMoney('tienkhoa', tienkhoa, citizenid..' Thuê trạm điện gió #'..turbineId..' Lần 1 tiền khoá')
+                Wait(100)
+                Player.Functions.RemoveMoney('bank', remainingAmount, citizenid..' Thuê trạm điện gió #'..turbineId..' Lần 2 tiền IC')
+            else
+                Player.Functions.RemoveMoney('bank', remainingAmount, citizenid..' Thuê trạm điện gió #'..turbineId..' | Tiền IC')
             end
-            Player.Functions.RemoveMoney('bank', remainingAmount)
         end
     end
-    
-    -- Lấy thông tin player
-    local ownerName = Player.PlayerData.charinfo.firstname .. ' ' .. Player.PlayerData.charinfo.lastname
-    
-    -- Lưu rental data ở server
+
+    local ownerName = Player.PlayerData.charinfo.firstname .. ' ' .. Player.PlayerData.charinfo.lastname 
     local currentTime = os.time()
     TurbineRentals[turbineId] = {
         citizenid = citizenid,
@@ -567,7 +568,7 @@ local function ValidateWithdrawAmount(citizenid, amount, clientWorkHours)
     return true, "OK"
 end
 
--- Event: Start Duty (với validation)
+-- SECURITY FIX: Event Start Duty - Khởi tạo server-side tracking + OWNERSHIP CHECK
 RegisterNetEvent('windturbine:startDuty')
 AddEventHandler('windturbine:startDuty', function(turbineId)
     local playerId = source
@@ -580,6 +581,37 @@ AddEventHandler('windturbine:startDuty', function(turbineId)
     
     local citizenid = Player.PlayerData.citizenid
     
+    -- SECURITY FIX: Validate turbineId
+    local validTurbineId = false
+    for _, turbineData in ipairs(Config.TurbineLocations) do
+        if turbineData.id == turbineId then
+            validTurbineId = true
+            break
+        end
+    end
+    
+    if not validTurbineId then
+        no:Notify(playerId, 'Trạm không hợp lệ!', 'error', 3000)
+        TriggerClientEvent('windturbine:startDutyFailed', playerId, 'INVALID_TURBINE')
+        return
+    end
+    
+    -- SECURITY FIX: Check ownership
+    CheckRentalExpiry(turbineId)
+    local rentalData = TurbineRentals[turbineId]
+    
+    if not rentalData then
+        no:Notify(playerId, 'Bạn cần thuê trạm này trước!', 'error', 3000)
+        TriggerClientEvent('windturbine:startDutyFailed', playerId, 'NOT_RENTED')
+        return
+    end
+    
+    if rentalData.citizenid ~= citizenid then
+        no:Notify(playerId, 'Bạn không phải chủ trạm này!', 'error', 3000)
+        TriggerClientEvent('windturbine:startDutyFailed', playerId, 'NOT_OWNER')
+        return
+    end
+    
     -- Reset daily hours nếu qua ngày mới
     CheckAndResetDailyHours(citizenid)
     
@@ -589,16 +621,27 @@ AddEventHandler('windturbine:startDuty', function(turbineId)
         return
     end
     
+    -- SECURITY: Khởi tạo earnings tracking
+    InitPlayerEarnings(citizenid)
+    PlayerEarnings[citizenid].onDuty = true
+    PlayerEarnings[citizenid].lastEarning = os.time()
+    PlayerEarnings[citizenid].lastPenalty = os.time()
+    PlayerEarnings[citizenid].lastFuelConsumption = os.time()
+    
     -- Lưu work start time
     PlayerWorkData[citizenid].workStartTime = os.time()
     
-    -- Thông báo thành công
-    TriggerClientEvent('windturbine:startDutySuccess', playerId)
+    -- Gửi dữ liệu server về client
+    TriggerClientEvent('windturbine:startDutySuccess', playerId, {
+        systems = PlayerEarnings[citizenid].systems,
+        earningsPool = PlayerEarnings[citizenid].earningsPool,
+        currentFuel = PlayerEarnings[citizenid].currentFuel
+    })
 end)
 
--- Event: Stop Duty (cập nhật work hours)
+-- SECURITY FIX: Event Stop Duty
 RegisterNetEvent('windturbine:stopDuty')
-AddEventHandler('windturbine:stopDuty', function(workDuration)
+AddEventHandler('windturbine:stopDuty', function()
     local playerId = source
     local Player = QBCore.Functions.GetPlayer(playerId)
     
@@ -606,20 +649,14 @@ AddEventHandler('windturbine:stopDuty', function(workDuration)
     
     local citizenid = Player.PlayerData.citizenid
     
+    if PlayerEarnings[citizenid] then
+        PlayerEarnings[citizenid].onDuty = false
+    end
+    
     -- Cập nhật daily work hours
     if PlayerWorkData[citizenid] and PlayerWorkData[citizenid].workStartTime > 0 then
-        -- Tính thời gian từ server để validate
         local serverWorkDuration = (os.time() - PlayerWorkData[citizenid].workStartTime) / 3600
-        
-        -- Chấp nhận client duration nếu sai số < 5%
-        local timeDiff = math.abs(serverWorkDuration - workDuration)
-        if timeDiff <= (workDuration * 0.05 + 0.1) then
-            PlayerWorkData[citizenid].dailyWorkHours = PlayerWorkData[citizenid].dailyWorkHours + workDuration
-        else
-            -- Dùng server time nếu client không khớp
-            PlayerWorkData[citizenid].dailyWorkHours = PlayerWorkData[citizenid].dailyWorkHours + serverWorkDuration
-        end
-        
+        PlayerWorkData[citizenid].dailyWorkHours = PlayerWorkData[citizenid].dailyWorkHours + serverWorkDuration
         PlayerWorkData[citizenid].workStartTime = 0
     end
 end)
@@ -685,60 +722,249 @@ QBCore.Functions.CreateCallback('windturbine:checkMoney', function(source, cb, r
     })
 end)
 
--- Event: Sử dụng jerrycan để đổ xăng
-RegisterNetEvent('windturbine:useJerrycan')
-AddEventHandler('windturbine:useJerrycan', function(fuelToAdd)
-    local playerId = source
-    local Player = QBCore.Functions.GetPlayer(playerId)
+-- SECURITY FIX: Event refuel - Update server-side fuel
+RegisterNetEvent('f17_tramdiengio:sv:useJerrycan')
+AddEventHandler('f17_tramdiengio:sv:useJerrycan', function(fuelToAdd, amount)
+    local src = source
+    local xPlayer = QBCore.Functions.GetPlayer(src)
+    if not xPlayer then return end
     
-    if not Player then return end
+    local citizenid = xPlayer.PlayerData.citizenid
+    InitPlayerEarnings(citizenid)
     
-    if GetJerrycanCount(Player) <= 0 then
-        TriggerClientEvent('windturbine:notify', playerId, '❌ Bạn không có can xăng!', 'error')
+    local countXang = ox:GetItem(src, 'jerrycan', nil, true)
+    if countXang <= 0 then
+        no:Notify(src, 'Bạn không có can xăng!', 'error', 3000)
         return
     end
     
-    -- Trừ 1 jerrycan
-    Player.Functions.RemoveItem(Config.JerrycanItemName, 1)
-    TriggerClientEvent('inventory:client:ItemBox', playerId, QBCore.Shared.Items[Config.JerrycanItemName], "remove")
+    ox:RemoveItem(src, Config.JerrycanItemName, amount)
     
-    -- Thông báo thành công cho client
-    TriggerClientEvent('windturbine:refuelSuccess', playerId, fuelToAdd)
+    -- SECURITY: Update server-side fuel
+    PlayerEarnings[citizenid].currentFuel = PlayerEarnings[citizenid].currentFuel + fuelToAdd
     
-    -- Gửi phone notification
-    local phoneNumber = exports["lb-phone"]:GetEquippedPhoneNumber(playerId)
+    TriggerClientEvent('windturbine:refuelSuccess', src, fuelToAdd, PlayerEarnings[citizenid].currentFuel)
+    
+    local phoneNumber = exports["lb-phone"]:GetEquippedPhoneNumber(src)
     if phoneNumber then
-        local refuelMsg = string.format("⛽ Đổ xăng thành công!\n\n✅ Đã thêm %d giờ nhiên liệu\n📦 Đã sử dụng 1 Jerrycan\n\n💡 Mỗi giờ hoạt động tiêu hao 1 fuel unit", fuelToAdd)
+        local refuelMsg = string.format("⛽ Đổ xăng thành công!\n\nBạn đã sử dụng %d can xăng để thêm %d giờ nhiên liệu\n\nMỗi giờ hoạt động tiêu hao 1 fuel unit", amount, fuelToAdd)
         exports['lb-phone']:SendMessage('Trạm Điện Gió', tostring(phoneNumber), refuelMsg, nil, nil, nil)
     end
 end)
 
--- Event: Sử dụng nhiều jerrycan (khi hết xăng hoàn toàn)
-RegisterNetEvent('windturbine:useMultipleJerrycans')
-AddEventHandler('windturbine:useMultipleJerrycans', function(canCount, fuelToAdd)
+-- SECURITY FIX: Event repair system - Server tự tính afterValue từ result
+RegisterNetEvent('windturbine:repairSystem')
+AddEventHandler('windturbine:repairSystem', function(system, result)
     local playerId = source
     local Player = QBCore.Functions.GetPlayer(playerId)
-    
     if not Player then return end
     
-    local totalCans = GetJerrycanCount(Player)
+    local citizenid = Player.PlayerData.citizenid
+    InitPlayerEarnings(citizenid)
     
-    if totalCans < canCount then
-        TriggerClientEvent('windturbine:notify', playerId, string.format('❌ Không đủ can xăng! Cần: %d, Có: %d', canCount, totalCans), 'error')
+    -- SECURITY: Validate system exists
+    if not PlayerEarnings[citizenid].systems[system] then
         return
     end
     
-    -- Trừ nhiều jerrycan
-    Player.Functions.RemoveItem(Config.JerrycanItemName, canCount)
-    TriggerClientEvent('inventory:client:ItemBox', playerId, QBCore.Shared.Items[Config.JerrycanItemName], "remove")
+    -- SECURITY: Validate player is on duty
+    if not PlayerEarnings[citizenid].onDuty then
+        return
+    end
     
-    -- Thông báo thành công cho client
-    TriggerClientEvent('windturbine:refuelSuccess', playerId, fuelToAdd)
+    -- SECURITY: Validate result
+    if result ~= 'perfect' and result ~= 'good' and result ~= 'fail' then
+        print(string.format('[CHEAT DETECTED] Player %s sent invalid result: %s', citizenid, tostring(result)))
+        return
+    end
     
-    -- Gửi phone notification
-    local phoneNumber = exports["lb-phone"]:GetEquippedPhoneNumber(playerId)
-    if phoneNumber then
-        local refuelMsg = string.format("⛽ Đổ xăng khởi động lại!\n\n✅ Đã thêm %d giờ nhiên liệu\n📦 Đã sử dụng %d Jerrycan\n\n💡 Máy đã sẵn sàng hoạt động trở lại!", fuelToAdd, canCount)
-        exports['lb-phone']:SendMessage('Trạm Điện Gió', tostring(phoneNumber), refuelMsg, nil, nil, nil)
+    -- Server tự tính reward dựa trên result
+    local reward = 0
+    if result == 'perfect' then
+        reward = Config.RepairRewards.perfect
+    elseif result == 'good' then
+        reward = Config.RepairRewards.good
+    else
+        reward = Config.RepairRewards.fail
+    end
+    
+    -- Server tự tính afterValue
+    local oldValue = PlayerEarnings[citizenid].systems[system]
+    local newValue = math.min(100, math.max(0, oldValue + reward))
+    
+    -- Update value
+    PlayerEarnings[citizenid].systems[system] = newValue
+    
+    -- Gửi giá trị chính xác về client
+    TriggerClientEvent('windturbine:updateSystems', playerId, PlayerEarnings[citizenid].systems)
+end)
+
+-- DEPRECATED: Event cũ vẫn giữ để tương thích (nhưng có validation chặt)
+RegisterNetEvent('windturbine:updateSystem')
+AddEventHandler('windturbine:updateSystem', function(system, newValue)
+    local playerId = source
+    local Player = QBCore.Functions.GetPlayer(playerId)
+    if not Player then return end
+    
+    local citizenid = Player.PlayerData.citizenid
+    InitPlayerEarnings(citizenid)
+    
+    -- SECURITY: Validate system exists
+    if not PlayerEarnings[citizenid].systems[system] then
+        return
+    end
+    
+    -- SECURITY: Validate player is on duty
+    if not PlayerEarnings[citizenid].onDuty then
+        return
+    end
+    
+    -- SECURITY: Validate newValue is reasonable (can only increase by max repair reward)
+    local oldValue = PlayerEarnings[citizenid].systems[system]
+    local maxIncrease = Config.RepairRewards.perfect -- 20
+    local minDecrease = Config.RepairRewards.fail -- -5
+    
+    -- Chỉ cho phép thay đổi trong khoảng hợp lý
+    if newValue > oldValue + maxIncrease or newValue < oldValue + minDecrease then
+        -- Cheat detected - log và reject
+        print(string.format('[CHEAT DETECTED] Player %s tried to set %s from %d to %d', citizenid, system, oldValue, newValue))
+        return
+    end
+    
+    -- Update value
+    PlayerEarnings[citizenid].systems[system] = math.min(100, math.max(0, newValue))
+end)
+
+-- SECURITY FIX: Callback get server data
+QBCore.Functions.CreateCallback('windturbine:getServerData', function(source, cb)
+    local Player = QBCore.Functions.GetPlayer(source)
+    if not Player then
+        cb(nil)
+        return
+    end
+    
+    local citizenid = Player.PlayerData.citizenid
+    InitPlayerEarnings(citizenid)
+    
+    cb({
+        systems = PlayerEarnings[citizenid].systems,
+        earningsPool = PlayerEarnings[citizenid].earningsPool,
+        currentFuel = PlayerEarnings[citizenid].currentFuel
+    })
+end)
+
+-- SECURITY FIX: Server-side earnings calculation thread + MEMORY CLEANUP
+CreateThread(function()
+    while true do
+        Wait(Config.TestMode and 60000 or 3600000) -- 1 phút (test) hoặc 1 giờ (production)
+        
+        for citizenid, earnings in pairs(PlayerEarnings) do
+            -- SECURITY FIX: Check if player is still online
+            local Player = QBCore.Functions.GetPlayerByCitizenId(citizenid)
+            
+            if not Player then
+                -- Player offline - cleanup if not on duty
+                if not earnings.onDuty then
+                    PlayerEarnings[citizenid] = nil
+                end
+                goto continue
+            end
+            
+            if earnings.onDuty then
+                local currentTime = os.time()
+                
+                -- Sinh tiền
+                local canEarn, status = CanEarnMoney(earnings.systems, earnings.currentFuel)
+                if canEarn then
+                    local earnAmount = CalculateSystemProfit(earnings.systems)
+                    earnings.earningsPool = earnings.earningsPool + earnAmount
+                    earnings.lastEarning = currentTime
+                    
+                    -- Gửi update về client
+                    TriggerClientEvent('windturbine:updateEarnings', Player.PlayerData.source, earnings.earningsPool)
+                end
+                
+                -- Áp dụng penalty
+                if canEarn and currentTime - earnings.lastPenalty >= (Config.TestMode and 60 or 3600) then
+                    local workHours = (currentTime - PlayerWorkData[citizenid].workStartTime) / 3600
+                    
+                    -- Tìm penalty range
+                    local penaltyRange = nil
+                    for _, range in ipairs(Config.PenaltyRanges) do
+                        if workHours >= range.minHours and workHours < range.maxHours then
+                            penaltyRange = range
+                            break
+                        end
+                    end
+                    
+                    if penaltyRange and #penaltyRange.penalties > 0 then
+                        local roll = math.random(1, 100)
+                        local cumulativeChance = 0
+                        local selectedPenalty = nil
+                        
+                        for _, penalty in ipairs(penaltyRange.penalties) do
+                            cumulativeChance = cumulativeChance + penalty.chance
+                            if roll <= cumulativeChance then
+                                selectedPenalty = penalty
+                                break
+                            end
+                        end
+                        
+                        if selectedPenalty and selectedPenalty.systems > 0 then
+                            local numSystems = selectedPenalty.systems
+                            if type(numSystems) == "table" then
+                                numSystems = math.random(numSystems[1], numSystems[2])
+                            end
+                            
+                            local systemNames = {"stability", "electric", "lubrication", "blades", "safety"}
+                            local availableSystems = {}
+                            for _, systemName in ipairs(systemNames) do
+                                if earnings.systems[systemName] > 30 then
+                                    table.insert(availableSystems, systemName)
+                                end
+                            end
+                            
+                            if #availableSystems > 0 then
+                                numSystems = math.min(numSystems, #availableSystems)
+                                
+                                for i = 1, numSystems do
+                                    local randomIndex = math.random(1, #availableSystems)
+                                    local systemName = table.remove(availableSystems, randomIndex)
+                                    earnings.systems[systemName] = math.max(0, earnings.systems[systemName] - selectedPenalty.damage)
+                                end
+                                
+                                -- Gửi update về client
+                                if Player then
+                                    TriggerClientEvent('windturbine:updateSystems', Player.PlayerData.source, earnings.systems)
+                                end
+                            end
+                        end
+                    end
+                    
+                    earnings.lastPenalty = currentTime
+                end
+                
+                -- Tiêu hao xăng
+                if currentTime - earnings.lastFuelConsumption >= (Config.TestMode and 60 or 3600) then
+                    if earnings.currentFuel > 0 then
+                        earnings.currentFuel = earnings.currentFuel - 1
+                        
+                        -- Gửi update về client
+                        if Player then
+                            TriggerClientEvent('windturbine:updateFuel', Player.PlayerData.source, earnings.currentFuel)
+                            
+                            if earnings.currentFuel == 0 then
+                                earnings.onDuty = false
+                                TriggerClientEvent('windturbine:outOfFuel', Player.PlayerData.source)
+                            end
+                        end
+                    end
+                    
+                    earnings.lastFuelConsumption = currentTime
+                end
+            end
+            
+            ::continue::
+        end
     end
 end)

@@ -1,3 +1,7 @@
+QBCore = exports['qb-core']:GetCoreObject()
+no = exports['f17notify']
+ox = exports.ox_inventory
+
 Config = {}
 
 -- ============================================
