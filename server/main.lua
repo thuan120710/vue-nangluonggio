@@ -1,3 +1,6 @@
+-- ============================================
+-- SECTION 1: DATA STRUCTURES
+-- ============================================
 local TurbineRentals = {}
 local TurbineExpiryGracePeriod = {} -- Lưu thời gian grace period (4 giờ để rút tiền)
 
@@ -7,22 +10,140 @@ local PlayerWorkData = {} -- [citizenid] = {workStartTime, dailyWorkHours, lastD
 -- SECURITY FIX: Server-side earnings tracking
 local PlayerEarnings = {} -- [citizenid] = {earningsPool, systems, lastEarning, lastPenalty, lastFuelConsumption, currentFuel, onDuty}
 
--- Khởi tạo: Reset GlobalState khi script start
-CreateThread(function()
-    -- Reset tất cả trạm về trạng thái chưa thuê
-    for _, turbineData in ipairs(Config.TurbineLocations) do
-        GlobalState['turbine_' .. turbineData.id] = {
-            isRented = false,
-            ownerName = nil,
-            citizenid = nil,
-            expiryTime = nil,
-            withdrawDeadline = nil,
-            isGracePeriod = false
+-- ============================================
+-- SECTION 2: UTILITY FUNCTIONS
+-- ============================================
+
+-- Get current day (reset at 6:00 AM Vietnam time)
+-- Reset vào 6:00 sáng giờ Việt Nam (UTC+7)
+-- ĐỒNG BỘ VỚI CLIENT để cùng logic reset
+-- @return string - Số ngày kể từ epoch
+local function GetCurrentDay()
+    local timestamp = os.time()
+    -- Điều chỉnh để reset vào 6:00 sáng VN thay vì 00:00 VN
+    -- 6:00 VN = 23:00 UTC ngày hôm trước
+    -- Nên ta trừ đi 1 giờ (3600 giây) từ UTC+7
+    local vietnamOffset = (7 * 3600) - (6 * 3600) -- UTC+7 - 6 giờ = UTC+1
+    local adjustedTime = timestamp + vietnamOffset
+    local days = math.floor(adjustedTime / 86400)
+    return tostring(days) -- Trả về số ngày kể từ epoch
+end
+
+-- Count total jerrycan items in player inventory
+-- @param Player QBCore Player object
+-- @return number - Total jerrycan count
+local function GetJerrycanCount(Player)
+    if not Player then return 0 end
+    
+    local totalCans = 0
+    for _, item in pairs(Player.PlayerData.items) do
+        if item and item.name == Config.JerrycanItemName then
+            totalCans = totalCans + (item.amount or 1)
+        end
+    end
+    
+    return totalCans
+end
+
+-- ============================================
+-- SECTION 3: CALCULATION FUNCTIONS
+-- ============================================
+
+-- Calculate system profit based on system values
+-- @param systems table - System values (stability, electric, etc.)
+-- @return number - Total profit amount
+local function CalculateSystemProfit(systems)
+    local totalProfit = 0
+    
+    for systemName, value in pairs(systems) do
+        local systemProfit = Config.BaseSalary * (Config.SystemProfitContribution / 100)
+        
+        if value <= 30 then
+            systemProfit = 0
+        else
+            systemProfit = systemProfit * (value / 100)
+        end
+        
+        totalProfit = totalProfit + systemProfit
+    end
+    
+    return totalProfit
+end
+
+-- Check if turbine can earn money
+-- @param systems table - System values
+-- @param currentFuel number - Current fuel level
+-- @return boolean, string - Can earn status and reason
+local function CanEarnMoney(systems, currentFuel)
+    if currentFuel <= 0 then
+        return false, "OUT_OF_FUEL"
+    end
+    
+    local below30 = 0
+    for _, value in pairs(systems) do
+        if value <= 30 then below30 = below30 + 1 end
+    end
+    
+    if below30 >= 3 then 
+        return false, "STOPPED"
+    end
+    
+    return true, "RUNNING"
+end
+
+-- ============================================
+-- SECTION 4: PLAYER DATA MANAGEMENT
+-- ============================================
+
+-- Initialize player earnings data
+-- @param citizenid string - Player citizen ID
+local function InitPlayerEarnings(citizenid)
+    if not PlayerEarnings[citizenid] then
+        PlayerEarnings[citizenid] = {
+            earningsPool = 0,
+            systems = {
+                stability = Config.InitialSystemValue,
+                electric = Config.InitialSystemValue,
+                lubrication = Config.InitialSystemValue,
+                blades = Config.InitialSystemValue,
+                safety = Config.InitialSystemValue
+            },
+            lastEarning = 0,
+            lastPenalty = 0,
+            lastFuelConsumption = 0,
+            currentFuel = 0,
+            onDuty = false
         }
     end
-end)
+end
 
--- Helper: Broadcast rental status qua StateBag (tất cả client tự động nhận - KHÔNG CẦN CHECK LIÊN TỤC!)
+-- Check and reset daily work hours if new day
+-- @param citizenid string - Player citizen ID
+local function CheckAndResetDailyHours(citizenid)
+    local currentDay = GetCurrentDay()
+    
+    if not PlayerWorkData[citizenid] then
+        PlayerWorkData[citizenid] = {
+            workStartTime = 0,
+            dailyWorkHours = 0,
+            lastDayReset = currentDay
+        }
+        return
+    end
+    
+    -- Reset nếu qua ngày mới (6:00 sáng)
+    if PlayerWorkData[citizenid].lastDayReset ~= currentDay then
+        PlayerWorkData[citizenid].dailyWorkHours = 0
+        PlayerWorkData[citizenid].lastDayReset = currentDay
+    end
+end
+
+-- ============================================
+-- SECTION 5: RENTAL SYSTEM
+-- ============================================
+
+-- Broadcast rental status via StateBag (all clients receive automatically)
+-- @param turbineId number - Turbine ID
 local function BroadcastRentalStatus(turbineId)
     local rentalData = TurbineRentals[turbineId]
     local graceData = TurbineExpiryGracePeriod[turbineId]
@@ -58,7 +179,9 @@ local function BroadcastRentalStatus(turbineId)
     end
 end
 
--- Helper: Kiểm tra hết hạn
+-- Check rental expiry and handle grace period
+-- @param turbineId number - Turbine ID
+-- @return boolean - True if expired/changed
 local function CheckRentalExpiry(turbineId)
     local currentTime = os.time()
     
@@ -131,83 +254,30 @@ local function CheckRentalExpiry(turbineId)
     return false
 end
 
--- Helper: Reset daily work hours nếu qua ngày mới
-local function CheckAndResetDailyHours(citizenid)
-    local currentDay = GetCurrentDay()
-    
-    if not PlayerWorkData[citizenid] then
-        PlayerWorkData[citizenid] = {
-            workStartTime = 0,
-            dailyWorkHours = 0,
-            lastDayReset = currentDay
-        }
-        return
-    end
-    
-    -- Reset nếu qua ngày mới (6:00 sáng)
-    if PlayerWorkData[citizenid].lastDayReset ~= currentDay then
-        PlayerWorkData[citizenid].dailyWorkHours = 0
-        PlayerWorkData[citizenid].lastDayReset = currentDay
-    end
-end
+-- ============================================
+-- SECTION 6: INITIALIZATION
+-- ============================================
 
--- SECURITY FIX: Server-side calculation functions
-local function CalculateSystemProfit(systems)
-    local totalProfit = 0
-    
-    for systemName, value in pairs(systems) do
-        local systemProfit = Config.BaseSalary * (Config.SystemProfitContribution / 100)
-        
-        if value <= 30 then
-            systemProfit = 0
-        else
-            systemProfit = systemProfit * (value / 100)
-        end
-        
-        totalProfit = totalProfit + systemProfit
-    end
-    
-    return totalProfit
-end
-
-local function CanEarnMoney(systems, currentFuel)
-    if currentFuel <= 0 then
-        return false, "OUT_OF_FUEL"
-    end
-    
-    local below30 = 0
-    for _, value in pairs(systems) do
-        if value <= 30 then below30 = below30 + 1 end
-    end
-    
-    if below30 >= 3 then 
-        return false, "STOPPED"
-    end
-    
-    return true, "RUNNING"
-end
-
-local function InitPlayerEarnings(citizenid)
-    if not PlayerEarnings[citizenid] then
-        PlayerEarnings[citizenid] = {
-            earningsPool = 0,
-            systems = {
-                stability = Config.InitialSystemValue,
-                electric = Config.InitialSystemValue,
-                lubrication = Config.InitialSystemValue,
-                blades = Config.InitialSystemValue,
-                safety = Config.InitialSystemValue
-            },
-            lastEarning = 0,
-            lastPenalty = 0,
-            lastFuelConsumption = 0,
-            currentFuel = 0,
-            onDuty = false
+-- Reset all turbines to unrented state on script start
+CreateThread(function()
+    for _, turbineData in ipairs(Config.TurbineLocations) do
+        GlobalState['turbine_' .. turbineData.id] = {
+            isRented = false,
+            ownerName = nil,
+            citizenid = nil,
+            expiryTime = nil,
+            withdrawDeadline = nil,
+            isGracePeriod = false
         }
     end
-end
+end)
 
--- SECURITY FIX: Event rút tiền - Server tính toán số tiền + VALIDATE TURBINE ID
+-- ============================================
+-- SECTION 7: EVENTS - RENTAL MANAGEMENT
+-- ============================================
+
+-- Event: Withdraw earnings (server calculates amount)
+-- SECURITY: Server tính toán số tiền, KHÔNG tin client
 RegisterNetEvent('windturbine:withdrawEarnings')
 AddEventHandler('windturbine:withdrawEarnings', function(isGracePeriod, turbineId)
     local playerId = source
@@ -287,7 +357,7 @@ AddEventHandler('windturbine:withdrawEarnings', function(isGracePeriod, turbineI
     end
 end)
 
--- Event: Thuê trạm (chỉ trừ tiền) - SECURITY FIX: Validate rental price
+-- Event: Rent turbine (SECURITY: Validate rental price)
 RegisterNetEvent('windturbine:rentTurbine')
 AddEventHandler('windturbine:rentTurbine', function(turbineId, rentalPrice)
     local playerId = source
@@ -383,6 +453,7 @@ AddEventHandler('windturbine:rentTurbine', function(turbineId, rentalPrice)
         end
     end
 
+
     local ownerName = Player.PlayerData.charinfo.firstname .. ' ' .. Player.PlayerData.charinfo.lastname 
     local currentTime = os.time()
     TurbineRentals[turbineId] = {
@@ -424,151 +495,11 @@ AddEventHandler('windturbine:rentTurbine', function(turbineId, rentalPrice)
     end
 end)
 
--- Thread: Tự động kiểm tra expiry (OPTIMIZATION: Tăng interval lên 30 giây thay vì 5 giây)
-CreateThread(function()
-    while true do
-        Wait(30000) -- OPTIMIZATION FIX: Check mỗi 30 giây thay vì 5 giây (vẫn đủ nhanh cho test mode 60s)
-        
-        -- Kiểm tra tất cả các trạm
-        for turbineId, _ in pairs(TurbineRentals) do
-            CheckRentalExpiry(turbineId)
-        end
-        
-        -- Kiểm tra grace period
-        for turbineId, _ in pairs(TurbineExpiryGracePeriod) do
-            CheckRentalExpiry(turbineId)
-        end
-    end
-end)
+-- ============================================
+-- SECTION 8: EVENTS - WORK MANAGEMENT
+-- ============================================
 
--- Event: Gửi phone notifications
-RegisterNetEvent('windturbine:sendPhoneNotification')
-AddEventHandler('windturbine:sendPhoneNotification', function(notifType, data)
-    local playerId = source
-    local phoneNumber = exports["lb-phone"]:GetEquippedPhoneNumber(playerId)
-    
-    if not phoneNumber then return end
-    
-    local message = ""
-    
-    if notifType == 'welcome' then
-        message = string.format("🌬️ Chào mừng đến Trạm Điện Gió!\n\n📊 Trạng thái hệ thống:\n• Độ ổn định: %d%%\n• Hệ thống điện: %d%%\n• Bôi trơn: %d%%\n• Thân tháp: %d%%\n• An toàn: %d%%\n\n💰 Thu nhập dự kiến: $%d IC/giờ\n\nChúc bạn làm việc hiệu quả!", 
-            data.systems.stability, data.systems.electric, data.systems.lubrication, 
-            data.systems.blades, data.systems.safety, math.floor(data.earningRate))
-    
-    elseif notifType == 'penalty' then
-        local systemDetails = table.concat(data.systemDetails, "\n")
-        message = string.format("⚠️ Cảnh báo hư hỏng!\n\nThời gian làm việc: %.1f giờ\nSố hệ thống bị ảnh hưởng: %d\nMức độ hư hỏng: -%d%%\n\nChi tiết:\n%s\n\n� Hãy sửa chữa để duy trì hiệu suất!", 
-            data.workHours, data.numSystems, data.damage, systemDetails)
-    
-    elseif notifType == 'repair' then
-        local systemNames = {
-            stability = "Độ ổn định",
-            electric = "Hệ thống điện",
-            lubrication = "Bôi trơn",
-            blades = "Thân tháp",
-            safety = "An toàn"
-        }
-        
-        local resultEmoji = data.result == 'perfect' and '🌟' or '✅'
-        local resultText = data.result == 'perfect' and 'Hoàn hảo' or 'Tốt'
-        
-        message = string.format("%s Sửa chữa %s!\n\nHệ thống: %s\nKết quả: %s (+%d%%)\nTrước: %d%% → Sau: %d%%\n\n📊 Hiệu suất hiện tại: %.1f%%\n💰 Thu nhập/giờ: $%d IC", 
-            resultEmoji, resultText, systemNames[data.system] or data.system, resultText, 
-            data.reward, data.beforeValue, data.afterValue, data.efficiency, math.floor(data.earningRate))
-    
-    elseif notifType == 'bonus' then
-        message = string.format("🌟 Hiệu suất xuất sắc!\n\n💵 Thu nhập: +$%d IC\n📊 Hiệu suất: %.1f%%\n💰 Tổng quỹ: $%d IC\n\nTiếp tục duy trì!", 
-            math.floor(data.earnings), data.efficiency, math.floor(data.earningsPool))
-    
-    elseif notifType == 'emergency' then
-        local criticalList = {}
-        for _, sys in ipairs(data.criticalSystems) do
-            table.insert(criticalList, string.format("• %s: %d%%", sys.name, sys.value))
-        end
-        
-        message = string.format("🚨 CẢNH BÁO KHẨN CẤP!\n\nMáy điện gió đã ngừng hoạt động!\n\nHệ thống nguy kịch:\n%s\n\n⚠️ Cần sửa chữa ngay lập tức để tiếp tục kiếm tiền!", 
-            table.concat(criticalList, "\n"))
-    
-    elseif notifType == 'dailyLimit' then
-        message = string.format("⏰ Kết thúc ca làm việc\n\n📅 Đã đạt giới hạn ngày: %.1f giờ\n💰 Quỹ tiền lương: $%d IC\n📊 Hiệu suất trung bình: %.1f%%\n\nHãy nghỉ ngơi và quay lại sau 6:00 sáng!", 
-            data.totalDailyHours, math.floor(data.earningsPool), data.efficiency)
-    
-    elseif notifType == 'outOfFuel' then
-        message = "⛽ HẾT XĂNG!\n\nMáy điện gió đã dừng hoạt động do hết nhiên liệu.\n\n🔧 Hãy sử dụng Jerrycan để đổ xăng và tiếp tục làm việc!\n\n💡 Mỗi can xăng = 25 giờ hoạt động"
-    end
-    
-    if message ~= "" then
-        exports['lb-phone']:SendMessage('Trạm Điện Gió', tostring(phoneNumber), message, nil, nil, nil)
-    end
-end)
-
--- Helper: Lấy ngày hiện tại (format: số ngày từ epoch)
--- Reset vào 6:00 sáng giờ Việt Nam (UTC+7)
--- ĐỒNG BỘ VỚI CLIENT để cùng logic reset
-local function GetCurrentDay()
-    local timestamp = os.time()
-    -- Điều chỉnh để reset vào 6:00 sáng VN thay vì 00:00 VN
-    -- 6:00 VN = 23:00 UTC ngày hôm trước
-    -- Nên ta trừ đi 1 giờ (3600 giây) từ UTC+7
-    local vietnamOffset = (7 * 3600) - (6 * 3600) -- UTC+7 - 6 giờ = UTC+1
-    local adjustedTime = timestamp + vietnamOffset
-    local days = math.floor(adjustedTime / 86400)
-    return tostring(days) -- Trả về số ngày kể từ epoch
-end
-
--- Helper: Reset daily work hours nếu qua ngày mới
-local function CheckAndResetDailyHours(citizenid)
-    local currentDay = GetCurrentDay()
-    
-    if not PlayerWorkData[citizenid] then
-        PlayerWorkData[citizenid] = {
-            workStartTime = 0,
-            dailyWorkHours = 0,
-            lastDayReset = currentDay
-        }
-        return
-    end
-    
-    -- Reset nếu qua ngày mới (6:00 sáng)
-    if PlayerWorkData[citizenid].lastDayReset ~= currentDay then
-        PlayerWorkData[citizenid].dailyWorkHours = 0
-        PlayerWorkData[citizenid].lastDayReset = currentDay
-    end
-end
-
--- Helper: Validate số tiền rút có hợp lý không
-local function ValidateWithdrawAmount(citizenid, amount, clientWorkHours)
-    -- Kiểm tra work data tồn tại
-    if not PlayerWorkData[citizenid] then
-        return false, "NO_WORK_DATA"
-    end
-    
-    local workData = PlayerWorkData[citizenid]
-    
-    -- Tính thời gian làm việc thực tế từ server
-    local serverWorkHours = 0
-    if workData.workStartTime > 0 then
-        serverWorkHours = (os.time() - workData.workStartTime) / 3600
-    end
-    
-    -- So sánh với client (cho phép sai số 5%)
-    local timeDiff = math.abs(serverWorkHours - clientWorkHours)
-    if timeDiff > (clientWorkHours * 0.05 + 0.1) then -- 5% + 0.1 giờ buffer
-        return false, "TIME_MISMATCH"
-    end
-    
-    -- Tính max earnings có thể (BaseSalary * hours * 120% buffer cho bonus)
-    local maxPossibleEarnings = clientWorkHours * Config.BaseSalary * 1.2
-    
-    if amount > maxPossibleEarnings then
-        return false, "AMOUNT_TOO_HIGH"
-    end
-    
-    return true, "OK"
-end
-
--- SECURITY FIX: Event Start Duty - Khởi tạo server-side tracking + OWNERSHIP CHECK
+-- Event: Start duty (SECURITY: Ownership check + server-side tracking)
 RegisterNetEvent('windturbine:startDuty')
 AddEventHandler('windturbine:startDuty', function(turbineId)
     local playerId = source
@@ -639,7 +570,7 @@ AddEventHandler('windturbine:startDuty', function(turbineId)
     })
 end)
 
--- SECURITY FIX: Event Stop Duty
+-- Event: Stop duty
 RegisterNetEvent('windturbine:stopDuty')
 AddEventHandler('windturbine:stopDuty', function()
     local playerId = source
@@ -661,98 +592,7 @@ AddEventHandler('windturbine:stopDuty', function()
     end
 end)
 
--- Callback: Lấy daily work hours từ server
-QBCore.Functions.CreateCallback('windturbine:getDailyWorkHours', function(source, cb)
-    local Player = QBCore.Functions.GetPlayer(source)
-    if not Player then
-        cb(0)
-        return
-    end
-    
-    local citizenid = Player.PlayerData.citizenid
-    CheckAndResetDailyHours(citizenid)
-    
-    cb(PlayerWorkData[citizenid].dailyWorkHours or 0)
-end)
-
--- Helper: Đếm tổng số jerrycan
-local function GetJerrycanCount(Player)
-    if not Player then return 0 end
-    
-    local totalCans = 0
-    for _, item in pairs(Player.PlayerData.items) do
-        if item and item.name == Config.JerrycanItemName then
-            totalCans = totalCans + (item.amount or 1)
-        end
-    end
-    
-    return totalCans
-end
-
--- Callback: Kiểm tra có jerrycan không
-QBCore.Functions.CreateCallback('windturbine:hasJerrycan', function(source, cb)
-    local Player = QBCore.Functions.GetPlayer(source)
-    cb(GetJerrycanCount(Player) > 0)
-end)
-
--- Callback: Lấy số lượng jerrycan
-QBCore.Functions.CreateCallback('windturbine:getJerrycanCount', function(source, cb)
-    local Player = QBCore.Functions.GetPlayer(source)
-    cb(GetJerrycanCount(Player))
-end)
-
--- Callback: Kiểm tra số tiền IC Khóa và IC Thường
-QBCore.Functions.CreateCallback('windturbine:checkMoney', function(source, cb, rentalPrice)
-    local Player = QBCore.Functions.GetPlayer(source)
-    
-    if not Player then
-        cb({hasEnough = false, tienkhoa = 0, bank = 0})
-        return
-    end
-    
-    local tienkhoa = Player.Functions.GetMoney('tienkhoa') or 0
-    local bank = Player.Functions.GetMoney('bank') or 0
-    local totalMoney = tienkhoa + bank
-    
-    cb({
-        hasEnough = totalMoney >= rentalPrice,
-        tienkhoa = tienkhoa,
-        bank = bank,
-        totalMoney = totalMoney
-    })
-end)
-
--- SECURITY FIX: Event refuel - Update server-side fuel
-RegisterNetEvent('f17_tramdiengio:sv:useJerrycan')
-AddEventHandler('f17_tramdiengio:sv:useJerrycan', function(fuelToAdd, amount)
-    local src = source
-    local xPlayer = QBCore.Functions.GetPlayer(src)
-    if not xPlayer then return end
-    
-    local citizenid = xPlayer.PlayerData.citizenid
-    InitPlayerEarnings(citizenid)
-    
-    local countXang = ox:GetItem(src, 'jerrycan', nil, true)
-    if countXang <= 0 then
-        no:Notify(src, 'Bạn không có can xăng!', 'error', 3000)
-        return
-    end
-    
-    ox:RemoveItem(src, Config.JerrycanItemName, amount)
-    
-    -- SECURITY: Update server-side fuel
-    PlayerEarnings[citizenid].currentFuel = PlayerEarnings[citizenid].currentFuel + fuelToAdd
-    
-    TriggerClientEvent('windturbine:refuelSuccess', src, fuelToAdd, PlayerEarnings[citizenid].currentFuel)
-    
-    local phoneNumber = exports["lb-phone"]:GetEquippedPhoneNumber(src)
-    if phoneNumber then
-        local refuelMsg = string.format("⛽ Đổ xăng thành công!\n\nBạn đã sử dụng %d can xăng để thêm %d giờ nhiên liệu\n\nMỗi giờ hoạt động tiêu hao 1 fuel unit", amount, fuelToAdd)
-        exports['lb-phone']:SendMessage('Trạm Điện Gió', tostring(phoneNumber), refuelMsg, nil, nil, nil)
-    end
-end)
-
--- SECURITY FIX: Event repair system - Server tự tính afterValue từ result
+-- Event: Repair system (SECURITY: Server calculates afterValue from result)
 RegisterNetEvent('windturbine:repairSystem')
 AddEventHandler('windturbine:repairSystem', function(system, result)
     local playerId = source
@@ -799,7 +639,7 @@ AddEventHandler('windturbine:repairSystem', function(system, result)
     TriggerClientEvent('windturbine:updateSystems', playerId, PlayerEarnings[citizenid].systems)
 end)
 
--- DEPRECATED: Event cũ vẫn giữ để tương thích (nhưng có validation chặt)
+-- Event: Update system (DEPRECATED - kept for compatibility with strict validation)
 RegisterNetEvent('windturbine:updateSystem')
 AddEventHandler('windturbine:updateSystem', function(system, newValue)
     local playerId = source
@@ -835,7 +675,111 @@ AddEventHandler('windturbine:updateSystem', function(system, newValue)
     PlayerEarnings[citizenid].systems[system] = math.min(100, math.max(0, newValue))
 end)
 
--- SECURITY FIX: Callback get server data
+-- ============================================
+-- SECTION 9: EVENTS - FUEL MANAGEMENT
+-- ============================================
+
+-- Event: Use jerrycan (SECURITY: Update server-side fuel)
+RegisterNetEvent('f17_tramdiengio:sv:useJerrycan')
+AddEventHandler('f17_tramdiengio:sv:useJerrycan', function(fuelToAdd, amount)
+    local src = source
+    local xPlayer = QBCore.Functions.GetPlayer(src)
+    if not xPlayer then return end
+    
+    local citizenid = xPlayer.PlayerData.citizenid
+    InitPlayerEarnings(citizenid)
+    
+    local countXang = ox:GetItem(src, 'jerrycan', nil, true)
+    if countXang <= 0 then
+        no:Notify(src, 'Bạn không có can xăng!', 'error', 3000)
+        return
+    end
+    
+    ox:RemoveItem(src, Config.JerrycanItemName, amount)
+    
+    -- SECURITY: Update server-side fuel
+    PlayerEarnings[citizenid].currentFuel = PlayerEarnings[citizenid].currentFuel + fuelToAdd
+    
+    TriggerClientEvent('windturbine:refuelSuccess', src, fuelToAdd, PlayerEarnings[citizenid].currentFuel)
+    
+    local phoneNumber = exports["lb-phone"]:GetEquippedPhoneNumber(src)
+    if phoneNumber then
+        local refuelMsg = string.format("⛽ Đổ xăng thành công!\n\nBạn đã sử dụng %d can xăng để thêm %d giờ nhiên liệu\n\nMỗi giờ hoạt động tiêu hao 1 fuel unit", amount, fuelToAdd)
+        exports['lb-phone']:SendMessage('Trạm Điện Gió', tostring(phoneNumber), refuelMsg, nil, nil, nil)
+    end
+end)
+
+-- ============================================
+-- SECTION 10: EVENTS - NOTIFICATIONS
+-- ============================================
+
+-- Event: Send phone notification
+RegisterNetEvent('windturbine:sendPhoneNotification')
+AddEventHandler('windturbine:sendPhoneNotification', function(notifType, data)
+    local playerId = source
+    local phoneNumber = exports["lb-phone"]:GetEquippedPhoneNumber(playerId)
+    
+    if not phoneNumber then return end
+    
+    local message = ""
+    
+    if notifType == 'welcome' then
+        message = string.format("🌬️ Chào mừng đến Trạm Điện Gió!\n\n📊 Trạng thái hệ thống:\n• Độ ổn định: %d%%\n• Hệ thống điện: %d%%\n• Bôi trơn: %d%%\n• Thân tháp: %d%%\n• An toàn: %d%%\n\n💰 Thu nhập dự kiến: $%d IC/giờ\n\nChúc bạn làm việc hiệu quả!", 
+            data.systems.stability, data.systems.electric, data.systems.lubrication, 
+            data.systems.blades, data.systems.safety, math.floor(data.earningRate))
+    
+    elseif notifType == 'penalty' then
+        local systemDetails = table.concat(data.systemDetails, "\n")
+        message = string.format("⚠️ Cảnh báo hư hỏng!\n\nThời gian làm việc: %.1f giờ\nSố hệ thống bị ảnh hưởng: %d\nMức độ hư hỏng: -%d%%\n\nChi tiết:\n%s\n\n🔧 Hãy sửa chữa để duy trì hiệu suất!", 
+            data.workHours, data.numSystems, data.damage, systemDetails)
+    
+    elseif notifType == 'repair' then
+        local systemNames = {
+            stability = "Độ ổn định",
+            electric = "Hệ thống điện",
+            lubrication = "Bôi trơn",
+            blades = "Thân tháp",
+            safety = "An toàn"
+        }
+        
+        local resultEmoji = data.result == 'perfect' and '🌟' or '✅'
+        local resultText = data.result == 'perfect' and 'Hoàn hảo' or 'Tốt'
+        
+        message = string.format("%s Sửa chữa %s!\n\nHệ thống: %s\nKết quả: %s (+%d%%)\nTrước: %d%% → Sau: %d%%\n\n📊 Hiệu suất hiện tại: %.1f%%\n💰 Thu nhập/giờ: $%d IC", 
+            resultEmoji, resultText, systemNames[data.system] or data.system, resultText, 
+            data.reward, data.beforeValue, data.afterValue, data.efficiency, math.floor(data.earningRate))
+    
+    elseif notifType == 'bonus' then
+        message = string.format("🌟 Hiệu suất xuất sắc!\n\n💵 Thu nhập: +$%d IC\n📊 Hiệu suất: %.1f%%\n💰 Tổng quỹ: $%d IC\n\nTiếp tục duy trì!", 
+            math.floor(data.earnings), data.efficiency, math.floor(data.earningsPool))
+    
+    elseif notifType == 'emergency' then
+        local criticalList = {}
+        for _, sys in ipairs(data.criticalSystems) do
+            table.insert(criticalList, string.format("• %s: %d%%", sys.name, sys.value))
+        end
+        
+        message = string.format("🚨 CẢNH BÁO KHẨN CẤP!\n\nMáy điện gió đã ngừng hoạt động!\n\nHệ thống nguy kịch:\n%s\n\n⚠️ Cần sửa chữa ngay lập tức để tiếp tục kiếm tiền!", 
+            table.concat(criticalList, "\n"))
+    
+    elseif notifType == 'dailyLimit' then
+        message = string.format("⏰ Kết thúc ca làm việc\n\n📅 Đã đạt giới hạn ngày: %.1f giờ\n💰 Quỹ tiền lương: $%d IC\n📊 Hiệu suất trung bình: %.1f%%\n\nHãy nghỉ ngơi và quay lại sau 6:00 sáng!", 
+            data.totalDailyHours, math.floor(data.earningsPool), data.efficiency)
+    
+    elseif notifType == 'outOfFuel' then
+        message = "⛽ HẾT XĂNG!\n\nMáy điện gió đã dừng hoạt động do hết nhiên liệu.\n\n🔧 Hãy sử dụng Jerrycan để đổ xăng và tiếp tục làm việc!\n\n💡 Mỗi can xăng = 25 giờ hoạt động"
+    end
+    
+    if message ~= "" then
+        exports['lb-phone']:SendMessage('Trạm Điện Gió', tostring(phoneNumber), message, nil, nil, nil)
+    end
+end)
+
+-- ============================================
+-- SECTION 11: CALLBACKS
+-- ============================================
+
+-- Callback: Get server data
 QBCore.Functions.CreateCallback('windturbine:getServerData', function(source, cb)
     local Player = QBCore.Functions.GetPlayer(source)
     if not Player then
@@ -853,7 +797,75 @@ QBCore.Functions.CreateCallback('windturbine:getServerData', function(source, cb
     })
 end)
 
--- SECURITY FIX: Server-side earnings calculation thread + MEMORY CLEANUP
+-- Callback: Get daily work hours
+QBCore.Functions.CreateCallback('windturbine:getDailyWorkHours', function(source, cb)
+    local Player = QBCore.Functions.GetPlayer(source)
+    if not Player then
+        cb(0)
+        return
+    end
+    
+    local citizenid = Player.PlayerData.citizenid
+    CheckAndResetDailyHours(citizenid)
+    
+    cb(PlayerWorkData[citizenid].dailyWorkHours or 0)
+end)
+
+-- Callback: Check if player has jerrycan
+QBCore.Functions.CreateCallback('windturbine:hasJerrycan', function(source, cb)
+    local Player = QBCore.Functions.GetPlayer(source)
+    cb(GetJerrycanCount(Player) > 0)
+end)
+
+-- Callback: Get jerrycan count
+QBCore.Functions.CreateCallback('windturbine:getJerrycanCount', function(source, cb)
+    local Player = QBCore.Functions.GetPlayer(source)
+    cb(GetJerrycanCount(Player))
+end)
+
+-- Callback: Check money (IC Khóa and IC Thường)
+QBCore.Functions.CreateCallback('windturbine:checkMoney', function(source, cb, rentalPrice)
+    local Player = QBCore.Functions.GetPlayer(source)
+    
+    if not Player then
+        cb({hasEnough = false, tienkhoa = 0, bank = 0})
+        return
+    end
+    
+    local tienkhoa = Player.Functions.GetMoney('tienkhoa') or 0
+    local bank = Player.Functions.GetMoney('bank') or 0
+    local totalMoney = tienkhoa + bank
+    
+    cb({
+        hasEnough = totalMoney >= rentalPrice,
+        tienkhoa = tienkhoa,
+        bank = bank,
+        totalMoney = totalMoney
+    })
+end)
+
+-- ============================================
+-- SECTION 12: BACKGROUND THREADS
+-- ============================================
+
+-- Thread: Check rental expiry (every 30 seconds)
+CreateThread(function()
+    while true do
+        Wait(30000) -- OPTIMIZATION: Check mỗi 30 giây thay vì 5 giây
+        
+        -- Kiểm tra tất cả các trạm
+        for turbineId, _ in pairs(TurbineRentals) do
+            CheckRentalExpiry(turbineId)
+        end
+        
+        -- Kiểm tra grace period
+        for turbineId, _ in pairs(TurbineExpiryGracePeriod) do
+            CheckRentalExpiry(turbineId)
+        end
+    end
+end)
+
+-- Thread: Calculate earnings and apply penalties (SECURITY + MEMORY CLEANUP)
 CreateThread(function()
     while true do
         Wait(Config.TestMode and 60000 or 3600000) -- 1 phút (test) hoặc 1 giờ (production)
@@ -910,38 +922,55 @@ CreateThread(function()
                             end
                         end
                         
-                        if selectedPenalty and selectedPenalty.systems > 0 then
+                        if selectedPenalty then
                             local numSystems = selectedPenalty.systems
+                            
+                            -- BUGFIX: Kiểm tra nếu systems là table hoặc number
+                            local hasSystemsToPenalize = false
                             if type(numSystems) == "table" then
-                                numSystems = math.random(numSystems[1], numSystems[2])
+                                -- Nếu là table, check xem có phần tử nào > 0 không
+                                hasSystemsToPenalize = (numSystems[1] and numSystems[1] > 0) or (numSystems[2] and numSystems[2] > 0)
+                            elseif type(numSystems) == "number" then
+                                hasSystemsToPenalize = numSystems > 0
                             end
                             
-                            local systemNames = {"stability", "electric", "lubrication", "blades", "safety"}
-                            local availableSystems = {}
-                            for _, systemName in ipairs(systemNames) do
-                                if earnings.systems[systemName] > 30 then
-                                    table.insert(availableSystems, systemName)
-                                end
-                            end
-                            
-                            if #availableSystems > 0 then
-                                numSystems = math.min(numSystems, #availableSystems)
-                                
-                                for i = 1, numSystems do
-                                    local randomIndex = math.random(1, #availableSystems)
-                                    local systemName = table.remove(availableSystems, randomIndex)
-                                    earnings.systems[systemName] = math.max(0, earnings.systems[systemName] - selectedPenalty.damage)
+                            if hasSystemsToPenalize then
+                                -- Convert table to random number
+                                if type(numSystems) == "table" then
+                                    numSystems = math.random(numSystems[1], numSystems[2])
                                 end
                                 
-                                -- Gửi update về client
-                                if Player then
-                                    TriggerClientEvent('windturbine:updateSystems', Player.PlayerData.source, earnings.systems)
+                                local systemNames = {"stability", "electric", "lubrication", "blades", "safety"}
+                                local availableSystems = {}
+                                for _, systemName in ipairs(systemNames) do
+                                    if earnings.systems[systemName] > 30 then
+                                        table.insert(availableSystems, systemName)
+                                    end
                                 end
+                                
+                                if #availableSystems > 0 then
+                                    numSystems = math.min(numSystems, #availableSystems)
+                                    
+                                    for i = 1, numSystems do
+                                        local randomIndex = math.random(1, #availableSystems)
+                                        local systemName = table.remove(availableSystems, randomIndex)
+                                        earnings.systems[systemName] = math.max(0, earnings.systems[systemName] - selectedPenalty.damage)
+                                    end
+                                    
+                                    -- Gửi update về client
+                                    if Player then
+                                        TriggerClientEvent('windturbine:updateSystems', Player.PlayerData.source, earnings.systems)
+                                    end
+                                    
+                                    -- BUGFIX: Chỉ update lastPenalty khi penalty THỰC SỰ được apply
+                                    earnings.lastPenalty = currentTime
+                                end
+                            else
+                                -- BUGFIX: Nếu selectedPenalty.systems = 0, vẫn update lastPenalty để không bị stuck
+                                earnings.lastPenalty = currentTime
                             end
                         end
                     end
-                    
-                    earnings.lastPenalty = currentTime
                 end
                 
                 -- Tiêu hao xăng

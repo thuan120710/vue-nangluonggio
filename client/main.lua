@@ -1,3 +1,7 @@
+-- ============================================
+-- SECTION 1: DATA STRUCTURES
+-- ============================================
+
 local isOnDuty = false
 local isNearTurbine = false
 local currentSystems = {
@@ -24,26 +28,6 @@ local rentalStatus = {
     isGracePeriod = false
 }
 
-
-
--- Helper: Lấy timestamp hiện tại (milliseconds)
-local function GetCurrentTime()
-    return GetGameTimer()
-end
-
--- Helper: Lấy ngày hiện tại (format: YYYY-MM-DD)
--- Reset vào 6:00 sáng giờ Việt Nam (UTC+7)
-local function GetCurrentDay()
-    local timestamp = GetCloudTimeAsInt()
-    -- Điều chỉnh để reset vào 6:00 sáng VN thay vì 00:00 VN
-    -- 6:00 VN = 23:00 UTC ngày hôm trước
-    -- Nên ta trừ đi 1 giờ (3600 giây) từ UTC+7
-    local vietnamOffset = (7 * 3600) - (6 * 3600) -- UTC+7 - 6 giờ = UTC+1
-    local adjustedTime = timestamp + vietnamOffset
-    local days = math.floor(adjustedTime / 86400)
-    return tostring(days) -- Trả về số ngày kể từ epoch
-end
-
 -- Dữ liệu player (chuyển từ server)
 local playerData = {
     onDuty = false,
@@ -65,11 +49,134 @@ local playerData = {
     currentFuel = 0 -- Bắt đầu với 0% xăng, phải đổ 4 can mới hoạt động
 }
 
+local turbineObjects = {}
+
 -- ============================================
--- UI FUNCTIONS (Định nghĩa trước để StateBag handler có thể dùng)
+-- SECTION 2: UTILITY FUNCTIONS
 -- ============================================
 
--- Đóng UI
+-- Get current timestamp (milliseconds)
+-- @return number - Current game timer
+local function GetCurrentTime()
+    return GetGameTimer()
+end
+
+-- Get current day (reset at 6:00 AM Vietnam time)
+-- Reset vào 6:00 sáng giờ Việt Nam (UTC+7)
+-- ĐỒNG BỘ VỚI SERVER để cùng logic reset
+-- @return string - Số ngày kể từ epoch
+local function GetCurrentDay()
+    local timestamp = GetCloudTimeAsInt()
+    -- Điều chỉnh để reset vào 6:00 sáng VN thay vì 00:00 VN
+    -- 6:00 VN = 23:00 UTC ngày hôm trước
+    -- Nên ta trừ đi 1 giờ (3600 giây) từ UTC+7
+    local vietnamOffset = (7 * 3600) - (6 * 3600) -- UTC+7 - 6 giờ = UTC+1
+    local adjustedTime = timestamp + vietnamOffset
+    local days = math.floor(adjustedTime / 86400)
+    return tostring(days) -- Trả về số ngày kể từ epoch
+end
+
+-- Draw 3D Text
+-- @param x number - X coordinate
+-- @param y number - Y coordinate
+-- @param z number - Z coordinate
+-- @param text string - Text to display
+function DrawText3D(x, y, z, text)
+    local onScreen, _x, _y = World3dToScreen2d(x, y, z)
+    local px, py, pz = table.unpack(GetGameplayCamCoords())
+    
+    SetTextScale(0.35, 0.35)
+    SetTextFont(4)
+    SetTextProportional(1)
+    SetTextColour(255, 255, 255, 215)
+    SetTextEntry("STRING")
+    SetTextCentre(1)
+    AddTextComponentString(text)
+    DrawText(_x, _y)
+end
+
+-- ============================================
+-- SECTION 3: DISPLAY CALCULATION FUNCTIONS
+-- ============================================
+-- LƯU Ý: Các function này CHỈ ĐỂ HIỂN THỊ UI
+-- Server mới là nơi tính toán earnings/penalty thực sự
+
+-- Calculate efficiency (average of 5 systems) - DISPLAY ONLY
+-- @return number - Efficiency percentage
+local function CalculateEfficiency()
+    local systems = playerData.systems
+    local total = 0
+    
+    for _, value in pairs(systems) do
+        if value <= 30 then
+            total = total + 0
+        else
+            total = total + value
+        end
+    end
+    
+    return total / 5
+end
+
+-- Calculate system profit (expected earning rate) - DISPLAY ONLY
+-- Server calculates actual earnings
+-- @return number - Expected profit per cycle
+local function CalculateSystemProfit()
+    local systems = playerData.systems
+    local totalProfit = 0
+    
+    for systemName, value in pairs(systems) do
+        local systemProfit = Config.BaseSalary * (Config.SystemProfitContribution / 100)
+        
+        if value <= 30 then
+            systemProfit = 0
+        else
+            systemProfit = systemProfit * (value / 100)
+        end
+        
+        totalProfit = totalProfit + systemProfit
+    end
+    
+    return totalProfit
+end
+
+-- Update UI with current data
+local function UpdateUI()
+    local actualEarningRate = CalculateSystemProfit() * 4
+    
+    currentSystems = playerData.systems
+    currentEfficiency = CalculateEfficiency()
+    
+    SendNUIMessage({
+        action = 'updateSystems',
+        systems = currentSystems
+    })
+    SendNUIMessage({
+        action = 'updateEfficiency',
+        efficiency = currentEfficiency
+    })
+    SendNUIMessage({
+        action = 'updateActualEarningRate',
+        earningRate = actualEarningRate
+    })
+end
+
+-- Stop duty and notify server
+local function StopDuty()
+    if playerData.onDuty then
+        playerData.onDuty = false
+        isOnDuty = false
+        
+        -- Gửi lên server để cập nhật
+        TriggerServerEvent('windturbine:stopDuty')
+    end
+end
+
+-- ============================================
+-- SECTION 4: UI FUNCTIONS
+-- ============================================
+
+-- Close UI
 local function CloseUI()
     SetNuiFocus(false, false)
     SendNUIMessage({
@@ -80,6 +187,7 @@ local function CloseUI()
     end
 end
 
+-- Open rental UI
 local function OpenRentalUI()
     exports['f17-hudv2']:toggleHud(false)
     
@@ -94,6 +202,7 @@ local function OpenRentalUI()
     })
 end
 
+-- Open expiry withdraw UI
 local function OpenExpiryWithdrawUI()
     exports['f17-hudv2']:toggleHud(false)
     
@@ -107,7 +216,7 @@ local function OpenExpiryWithdrawUI()
     })
 end
 
--- Mở UI chính
+-- Open main UI
 local function OpenMainUI()
     if rentalStatus.isGracePeriod and rentalStatus.isOwner then
         OpenExpiryWithdrawUI()
@@ -147,7 +256,8 @@ local function OpenMainUI()
     })
 end
 
--- Mở minigame
+-- Open minigame
+-- @param system string - System name to repair
 local function OpenMinigame(system)
     local settings = Config.MinigameSettings[system]
     if not settings then return end
@@ -164,13 +274,11 @@ local function OpenMinigame(system)
     })
 end
 
-
-
 -- ============================================
--- KHỞI TẠO VÀ STATEBAG HANDLER
+-- SECTION 5: INITIALIZATION
 -- ============================================
 
--- Khởi tạo ngày khi script load
+-- Initialize day when script loads
 CreateThread(function()
     Wait(1000)
     playerData.lastDayReset = GetCurrentDay()
@@ -185,83 +293,29 @@ CreateThread(function()
     }
 end)
 
--- ============================================
--- CLIENT-SIDE DISPLAY FUNCTIONS (CHỈ ĐỂ HIỂN THỊ UI)
--- LƯU Ý: Các function này KHÔNG ảnh hưởng đến logic thực tế
--- Server mới là nơi tính toán earnings/penalty thực sự
--- ============================================
-
--- Tính hiệu suất tổng (trung bình 5 chỉ số) - CHỈ ĐỂ HIỂN THỊ
-local function CalculateEfficiency()
-    local systems = playerData.systems
-    local total = 0
+-- Initialize turbine objects for all stations
+CreateThread(function()
+    local modelHash = GetHashKey("f17_bangdieukhiendiengio")
     
-    for _, value in pairs(systems) do
-        if value <= 30 then
-            total = total + 0
-        else
-            total = total + value
-        end
+    -- Load model vào bộ nhớ
+    RequestModel(modelHash)
+    while not HasModelLoaded(modelHash) do
+        Wait(1)
     end
-    
-    return total / 5
-end
 
--- Tính lợi nhuận DỰ KIẾN - CHỈ ĐỂ HIỂN THỊ EARNING RATE
--- Server mới là nơi tính toán earnings THỰC TẾ
-local function CalculateSystemProfit()
-    local systems = playerData.systems
-    local totalProfit = 0
-    
-    for systemName, value in pairs(systems) do
-        local systemProfit = Config.BaseSalary * (Config.SystemProfitContribution / 100)
-        
-        if value <= 30 then
-            systemProfit = 0
-        else
-            systemProfit = systemProfit * (value / 100)
-        end
-        
-        totalProfit = totalProfit + systemProfit
+    -- Tạo Object cho mỗi trạm
+    for _, turbineData in ipairs(Config.TurbineLocations) do
+        local coords = turbineData.coords
+        local obj = CreateObject(modelHash, coords.x, coords.y, coords.z - 1.0, false, false, false)
+        SetEntityHeading(obj, coords.w or 0.0)
+        FreezeEntityPosition(obj, true)
+        SetEntityInvincible(obj, true)
+        turbineObjects[turbineData.id] = obj
     end
-    
-    return totalProfit
-end
-
--- Helper: Cập nhật UI (gộp logic trùng lặp)
-local function UpdateUI()
-    local actualEarningRate = CalculateSystemProfit() * 4
-    
-    currentSystems = playerData.systems
-    currentEfficiency = CalculateEfficiency()
-    
-    SendNUIMessage({
-        action = 'updateSystems',
-        systems = currentSystems
-    })
-    SendNUIMessage({
-        action = 'updateEfficiency',
-        efficiency = currentEfficiency
-    })
-    SendNUIMessage({
-        action = 'updateActualEarningRate',
-        earningRate = actualEarningRate
-    })
-end
-
--- Helper: Tắt duty (gộp logic trùng lặp)
-local function StopDuty()
-    if playerData.onDuty then
-        playerData.onDuty = false
-        isOnDuty = false
-        
-        -- Gửi lên server để cập nhật
-        TriggerServerEvent('windturbine:stopDuty')
-    end
-end
+end)
 
 -- ============================================
--- NUI CALLBACKS
+-- SECTION 6: NUI CALLBACKS
 -- ============================================
 
 RegisterNUICallback('close', function(data, cb)
@@ -278,15 +332,12 @@ RegisterNUICallback('startDuty', function(data, cb)
     end
     
     -- Kiểm tra xăng tối thiểu
-    -- Nếu hết xăng hoàn toàn (0 fuel), cần đổ 4 can (100 fuel)
-    -- Nếu còn xăng, chỉ cần > 0 là được
     if playerData.currentFuel == 0 then
         no:Notify(string.format('❌ Hết xăng! Cần đổ %d can xăng  để khởi động lại máy.', math.ceil(Config.MinFuelToStart / Config.FuelPerJerrycan)), 'error', 7000)
         cb('ok')
         return
     elseif playerData.currentFuel < Config.MinFuelToStart and playerData.currentFuel > 0 then
         -- Nếu còn xăng nhưng chưa đủ 100, vẫn cho chạy (để tiêu hao hết)
-        -- Không block
     end
     
     -- Server sẽ kiểm tra giới hạn thời gian và ownership
@@ -347,7 +398,6 @@ RegisterNUICallback('minigameResult', function(data, cb)
     end
     
     -- SECURITY FIX: Chỉ gửi result lên server, để server tự tính reward và afterValue
-    -- Client CHỈ tính để hiển thị UI tạm thời, server sẽ gửi giá trị chính xác về
     local reward = 0
     
     if result == 'perfect' then
@@ -446,10 +496,8 @@ RegisterNUICallback('withdrawEarnings', function(data, cb)
     cb('ok')
 end)
 
--- NUI Callback: Thuê trạm
 RegisterNUICallback('rentTurbine', function(data, cb)
     -- SECURITY: Client gửi rentalPrice từ Config để server validate
-    -- Server sẽ kiểm tra rentalPrice == Config.RentalPrice
     local rentalPrice = Config.RentalPrice or 0
     
     -- Kiểm tra trạng thái hiện tại (StateBag đã tự động cập nhật)
@@ -464,7 +512,6 @@ RegisterNUICallback('rentTurbine', function(data, cb)
     cb('ok')
 end)
 
--- NUI Callback: Kiểm tra số tiền trước khi thuê
 RegisterNUICallback('checkMoneyForRent', function(data, cb)
     local rentalPrice = data.rentalPrice or Config.RentalPrice or 0
     
@@ -472,6 +519,10 @@ RegisterNUICallback('checkMoneyForRent', function(data, cb)
         cb(result)
     end, rentalPrice)
 end)
+
+-- ============================================
+-- SECTION 7: SERVER EVENTS
+-- ============================================
 
 RegisterNetEvent('windturbine:rentSuccess')
 AddEventHandler('windturbine:rentSuccess', function(data)
@@ -611,13 +662,11 @@ AddEventHandler('windturbine:refuelSuccess', function(fuelAdded, newFuelTotal)
         maxFuel = Config.MaxFuel
     })
     
-    -- Nếu UI đang mở, refresh lại để hiển thị bar xăng đầy
-    -- Nếu UI chưa mở, mở UI để người chơi thấy kết quả
+    -- Refresh UI
     Wait(300)
     OpenMainUI()
 end)
 
--- Event: Grace period hết hạn - Reset toàn bộ data
 RegisterNetEvent('windturbine:gracePeriodExpired')
 AddEventHandler('windturbine:gracePeriodExpired', function()
     -- Reset TOÀN BỘ dữ liệu player
@@ -651,12 +700,74 @@ AddEventHandler('windturbine:gracePeriodExpired', function()
     CloseUI()
 end)
 
--- Thread: Cập nhật thời gian làm việc liên tục (OPTIMIZATION: 1 phút/lần)
+RegisterNetEvent('windturbine:updateEarnings')
+AddEventHandler('windturbine:updateEarnings', function(newEarnings)
+    playerData.earningsPool = newEarnings
+    currentEarnings = newEarnings
+    
+    SendNUIMessage({
+        action = 'updateEarnings',
+        earnings = currentEarnings
+    })
+end)
+
+RegisterNetEvent('windturbine:updateSystems')
+AddEventHandler('windturbine:updateSystems', function(newSystems)
+    playerData.systems = newSystems
+    currentSystems = newSystems
+    currentEfficiency = CalculateEfficiency()
+    
+    SendNUIMessage({
+        action = 'updateSystems',
+        systems = currentSystems
+    })
+    SendNUIMessage({
+        action = 'updateEfficiency',
+        efficiency = currentEfficiency
+    })
+end)
+
+RegisterNetEvent('windturbine:updateFuel')
+AddEventHandler('windturbine:updateFuel', function(newFuel)
+    playerData.currentFuel = newFuel
+    
+    SendNUIMessage({
+        action = 'updateFuel',
+        currentFuel = playerData.currentFuel,
+        maxFuel = Config.MaxFuel
+    })
+    
+    if newFuel == 10 then
+        no:Notify('⚠️ Cảnh báo: Còn 10 giờ xăng!', 'error', 5000)
+    elseif newFuel == 5 then
+        no:Notify('🚨 Khẩn cấp: Còn 5 giờ xăng!', 'error', 5000)
+    end
+end)
+
+RegisterNetEvent('windturbine:outOfFuel')
+AddEventHandler('windturbine:outOfFuel', function()
+    playerData.onDuty = false
+    isOnDuty = false
+    
+    no:Notify('⛽ Hết xăng! Máy đã dừng hoạt động.', 'error', 7000)
+    
+    SendNUIMessage({
+        action = 'outOfFuel'
+    })
+    
+    TriggerServerEvent('windturbine:sendPhoneNotification', 'outOfFuel', {})
+end)
+
+-- ============================================
+-- SECTION 8: BACKGROUND THREADS
+-- ============================================
+
+-- Thread: Update work time continuously (every 1 minute)
 CreateThread(function()
     while true do
         -- OPTIMIZATION: Chỉ chạy khi cần thiết
         if playerData.onDuty and not rentalStatus.isGracePeriod then
-            Wait(60000) -- Cập nhật mỗi 1 phút (đủ chính xác cho thời gian tính bằng giờ)
+            Wait(60000) -- Cập nhật mỗi 1 phút
             
             local currentTime = GetCurrentTime()
             local currentWorkHours = (currentTime - playerData.workStartTime) / 1000 / 3600
@@ -673,9 +784,7 @@ CreateThread(function()
     end
 end)
 
--- SECURITY FIX: Thread này đã được chuyển sang server-side
--- Client chỉ nhận updates từ server qua events
--- Giữ lại thread kiểm tra daily limit
+-- Thread: Check daily limit (every 1 minute)
 CreateThread(function()
     while true do
         Wait(60000) -- Check mỗi 1 phút
@@ -714,7 +823,7 @@ CreateThread(function()
     end
 end)
 
--- Thread: Kiểm tra khoảng cách (hỗ trợ nhiều trạm)
+-- Thread: Check distance from turbine
 CreateThread(function()
     local lastWarningTime = 0
     
@@ -741,30 +850,7 @@ CreateThread(function()
     end
 end)
 
-local turbineObjects = {}
-
--- Hàm khởi tạo Objects cho TẤT CẢ các trạm
-CreateThread(function()
-    local modelHash = GetHashKey("f17_bangdieukhiendiengio")
-    
-    -- Load model vào bộ nhớ
-    RequestModel(modelHash)
-    while not HasModelLoaded(modelHash) do
-        Wait(1)
-    end
-
-    -- Tạo Object cho mỗi trạm
-    for _, turbineData in ipairs(Config.TurbineLocations) do
-        local coords = turbineData.coords
-        local obj = CreateObject(modelHash, coords.x, coords.y, coords.z - 1.0, false, false, false)
-        SetEntityHeading(obj, coords.w or 0.0)
-        FreezeEntityPosition(obj, true)
-        SetEntityInvincible(obj, true)
-        turbineObjects[turbineData.id] = obj
-    end
-end)
-
--- OPTIMIZATION FIX: Gộp tất cả trạm vào 1 thread duy nhất thay vì 5 threads riêng biệt
+-- Thread: Main turbine handler (OPTIMIZATION: All turbines in one thread)
 CreateThread(function()
     -- Load rental status ban đầu cho tất cả trạm
     local turbineStates = {}
@@ -917,78 +1003,4 @@ CreateThread(function()
         
         Wait(sleep)
     end
-end)
-
--- Helper: Draw 3D Text
-function DrawText3D(x, y, z, text)
-    local onScreen, _x, _y = World3dToScreen2d(x, y, z)
-    local px, py, pz = table.unpack(GetGameplayCamCoords())
-    
-    SetTextScale(0.35, 0.35)
-    SetTextFont(4)
-    SetTextProportional(1)
-    SetTextColour(255, 255, 255, 215)
-    SetTextEntry("STRING")
-    SetTextCentre(1)
-    AddTextComponentString(text)
-    DrawText(_x, _y)
-end
-
--- SECURITY FIX: Event handlers để nhận updates từ server
-RegisterNetEvent('windturbine:updateEarnings')
-AddEventHandler('windturbine:updateEarnings', function(newEarnings)
-    playerData.earningsPool = newEarnings
-    currentEarnings = newEarnings
-    
-    SendNUIMessage({
-        action = 'updateEarnings',
-        earnings = currentEarnings
-    })
-end)
-
-RegisterNetEvent('windturbine:updateSystems')
-AddEventHandler('windturbine:updateSystems', function(newSystems)
-    playerData.systems = newSystems
-    currentSystems = newSystems
-    currentEfficiency = CalculateEfficiency()
-    
-    SendNUIMessage({
-        action = 'updateSystems',
-        systems = currentSystems
-    })
-    SendNUIMessage({
-        action = 'updateEfficiency',
-        efficiency = currentEfficiency
-    })
-end)
-
-RegisterNetEvent('windturbine:updateFuel')
-AddEventHandler('windturbine:updateFuel', function(newFuel)
-    playerData.currentFuel = newFuel
-    
-    SendNUIMessage({
-        action = 'updateFuel',
-        currentFuel = playerData.currentFuel,
-        maxFuel = Config.MaxFuel
-    })
-    
-    if newFuel == 10 then
-        no:Notify('⚠️ Cảnh báo: Còn 10 giờ xăng!', 'error', 5000)
-    elseif newFuel == 5 then
-        no:Notify('🚨 Khẩn cấp: Còn 5 giờ xăng!', 'error', 5000)
-    end
-end)
-
-RegisterNetEvent('windturbine:outOfFuel')
-AddEventHandler('windturbine:outOfFuel', function()
-    playerData.onDuty = false
-    isOnDuty = false
-    
-    no:Notify('⛽ Hết xăng! Máy đã dừng hoạt động.', 'error', 7000)
-    
-    SendNUIMessage({
-        action = 'outOfFuel'
-    })
-    
-    TriggerServerEvent('windturbine:sendPhoneNotification', 'outOfFuel', {})
 end)
