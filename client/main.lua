@@ -101,6 +101,30 @@ end
 -- LƯU Ý: Các function này CHỈ ĐỂ HIỂN THỊ UI
 -- Server mới là nơi tính toán earnings/penalty thực sự
 
+-- Reset player data to initial state
+-- @return table - Fresh player data
+local function ResetPlayerData()
+    return {
+        onDuty = false,
+        systems = {
+            stability = Config.InitialSystemValue,
+            electric = Config.InitialSystemValue,
+            lubrication = Config.InitialSystemValue,
+            blades = Config.InitialSystemValue,
+            safety = Config.InitialSystemValue
+        },
+        earningsPool = 0,
+        lastEarning = 0,
+        lastPenalty = 0,
+        lastFuelConsumption = 0,
+        workStartTime = 0,
+        totalWorkHours = 0,
+        dailyWorkHours = 0,
+        lastDayReset = GetCurrentDay(),
+        currentFuel = 0
+    }
+end
+
 -- Calculate efficiency (average of 5 systems) - DISPLAY ONLY
 -- @return number - Efficiency percentage
 local function CalculateEfficiency()
@@ -603,25 +627,7 @@ AddEventHandler('windturbine:withdrawSuccess', function(amount, isGracePeriod)
     -- Xử lý theo loại rút tiền
     if isGracePeriod then
         -- Rút tiền grace period: Reset TOÀN BỘ dữ liệu player
-        playerData = {
-            onDuty = false,
-            systems = {
-                stability = Config.InitialSystemValue,
-                electric = Config.InitialSystemValue,
-                lubrication = Config.InitialSystemValue,
-                blades = Config.InitialSystemValue,
-                safety = Config.InitialSystemValue
-            },
-            earningsPool = 0,
-            lastEarning = 0,
-            lastPenalty = 0,
-            lastFuelConsumption = 0,
-            workStartTime = 0,
-            totalWorkHours = 0,
-            dailyWorkHours = 0,
-            lastDayReset = GetCurrentDay(),
-            currentFuel = 0
-        }
+        playerData = ResetPlayerData()
         
         -- Reset các biến global
         isOnDuty = false
@@ -670,25 +676,7 @@ end)
 RegisterNetEvent('windturbine:gracePeriodExpired')
 AddEventHandler('windturbine:gracePeriodExpired', function()
     -- Reset TOÀN BỘ dữ liệu player
-    playerData = {
-        onDuty = false,
-        systems = {
-            stability = Config.InitialSystemValue,
-            electric = Config.InitialSystemValue,
-            lubrication = Config.InitialSystemValue,
-            blades = Config.InitialSystemValue,
-            safety = Config.InitialSystemValue
-        },
-        earningsPool = 0,
-        lastEarning = 0,
-        lastPenalty = 0,
-        lastFuelConsumption = 0,
-        workStartTime = 0,
-        totalWorkHours = 0,
-        dailyWorkHours = 0,
-        lastDayReset = GetCurrentDay(),
-        currentFuel = 0
-    }
+    playerData = ResetPlayerData()
     
     -- Reset các biến global
     isOnDuty = false

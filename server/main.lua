@@ -29,6 +29,18 @@ local function GetCurrentDay()
     return tostring(days) -- Trả về số ngày kể từ epoch
 end
 
+-- Validate turbine ID
+-- @param turbineId string - Turbine ID to validate
+-- @return boolean - True if valid, false otherwise
+local function ValidateTurbineId(turbineId)
+    for _, turbineData in ipairs(Config.TurbineLocations) do
+        if turbineData.id == turbineId then
+            return true
+        end
+    end
+    return false
+end
+
 -- Count total jerrycan items in player inventory
 -- @param Player QBCore Player object
 -- @return number - Total jerrycan count
@@ -297,15 +309,7 @@ AddEventHandler('windturbine:withdrawEarnings', function(isGracePeriod, turbineI
     
     if isGracePeriod and turbineId then
         -- SECURITY FIX: Validate turbineId
-        local validTurbineId = false
-        for _, turbineData in ipairs(Config.TurbineLocations) do
-            if turbineData.id == turbineId then
-                validTurbineId = true
-                break
-            end
-        end
-        
-        if not validTurbineId then
+        if not ValidateTurbineId(turbineId) then
             no:Notify(playerId, 'Trạm không hợp lệ!', 'error', 3000)
             return
         end
@@ -369,15 +373,7 @@ AddEventHandler('windturbine:rentTurbine', function(turbineId, rentalPrice)
     end
     
     -- SECURITY FIX: Validate turbineId
-    local validTurbineId = false
-    for _, turbineData in ipairs(Config.TurbineLocations) do
-        if turbineData.id == turbineId then
-            validTurbineId = true
-            break
-        end
-    end
-    
-    if not validTurbineId then
+    if not ValidateTurbineId(turbineId) then
         no:Notify(playerId, 'Trạm không hợp lệ!', 'error', 3000)
         TriggerClientEvent('windturbine:rentFailed', playerId)
         return
@@ -513,15 +509,7 @@ AddEventHandler('windturbine:startDuty', function(turbineId)
     local citizenid = Player.PlayerData.citizenid
     
     -- SECURITY FIX: Validate turbineId
-    local validTurbineId = false
-    for _, turbineData in ipairs(Config.TurbineLocations) do
-        if turbineData.id == turbineId then
-            validTurbineId = true
-            break
-        end
-    end
-    
-    if not validTurbineId then
+    if not ValidateTurbineId(turbineId) then
         no:Notify(playerId, 'Trạm không hợp lệ!', 'error', 3000)
         TriggerClientEvent('windturbine:startDutyFailed', playerId, 'INVALID_TURBINE')
         return
