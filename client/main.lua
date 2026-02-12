@@ -62,18 +62,10 @@ local function GetCurrentTime()
 end
 
 -- Get current day (reset at 6:00 AM Vietnam time)
--- Reset vào 6:00 sáng giờ Việt Nam (UTC+7)
 -- ĐỒNG BỘ VỚI SERVER để cùng logic reset
 -- @return string - Số ngày kể từ epoch
 local function GetCurrentDay()
-    local timestamp = GetCloudTimeAsInt()
-    -- Điều chỉnh để reset vào 6:00 sáng VN thay vì 00:00 VN
-    -- 6:00 VN = 23:00 UTC ngày hôm trước
-    -- Nên ta trừ đi 1 giờ (3600 giây) từ UTC+7
-    local vietnamOffset = (7 * 3600) - (6 * 3600) -- UTC+7 - 6 giờ = UTC+1
-    local adjustedTime = timestamp + vietnamOffset
-    local days = math.floor(adjustedTime / 86400)
-    return tostring(days) -- Trả về số ngày kể từ epoch
+    return Utils.GetCurrentDay(GetCloudTimeAsInt())
 end
 
 -- Draw 3D Text
@@ -104,64 +96,20 @@ end
 -- Reset player data to initial state
 -- @return table - Fresh player data
 local function ResetPlayerData()
-    return {
-        onDuty = false,
-        systems = {
-            stability = Config.InitialSystemValue,
-            electric = Config.InitialSystemValue,
-            lubrication = Config.InitialSystemValue,
-            blades = Config.InitialSystemValue,
-            safety = Config.InitialSystemValue
-        },
-        earningsPool = 0,
-        lastEarning = 0,
-        lastPenalty = 0,
-        lastFuelConsumption = 0,
-        workStartTime = 0,
-        totalWorkHours = 0,
-        dailyWorkHours = 0,
-        lastDayReset = GetCurrentDay(),
-        currentFuel = 0
-    }
+    return Utils.GetInitialPlayerData(GetCurrentDay(), Config.InitialSystemValue)
 end
 
 -- Calculate efficiency (average of 5 systems) - DISPLAY ONLY
 -- @return number - Efficiency percentage
 local function CalculateEfficiency()
-    local systems = playerData.systems
-    local total = 0
-    
-    for _, value in pairs(systems) do
-        if value <= 30 then
-            total = total + 0
-        else
-            total = total + value
-        end
-    end
-    
-    return total / 5
+    return Utils.CalculateEfficiency(playerData.systems)
 end
 
 -- Calculate system profit (expected earning rate) - DISPLAY ONLY
 -- Server calculates actual earnings
 -- @return number - Expected profit per cycle
 local function CalculateSystemProfit()
-    local systems = playerData.systems
-    local totalProfit = 0
-    
-    for systemName, value in pairs(systems) do
-        local systemProfit = Config.BaseSalary * (Config.SystemProfitContribution / 100)
-        
-        if value <= 30 then
-            systemProfit = 0
-        else
-            systemProfit = systemProfit * (value / 100)
-        end
-        
-        totalProfit = totalProfit + systemProfit
-    end
-    
-    return totalProfit
+    return Utils.CalculateSystemProfit(playerData.systems, Config.BaseSalary, Config.SystemProfitContribution)
 end
 
 -- Update UI with current data
@@ -307,14 +255,7 @@ CreateThread(function()
     Wait(1000)
     playerData.lastDayReset = GetCurrentDay()
     
-    rentalStatus = {
-        isRented = false,
-        isOwner = false,
-        ownerName = nil,
-        expiryTime = nil,
-        withdrawDeadline = nil,
-        isGracePeriod = false
-    }
+    rentalStatus = Utils.GetInitialRentalState()
 end)
 
 -- Initialize turbine objects for all stations

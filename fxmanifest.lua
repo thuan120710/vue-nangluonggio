@@ -10,16 +10,15 @@ version '1.0.0'
 dependency 'lb-phone'
 
 shared_scripts {
-    'config.lua'
+    'config.lua',
+    'shared/utils.lua'
 }
 
 client_scripts {
-    'config.lua',  -- Load lại config để đảm bảo
     'client/main.lua'
 }
 
 server_scripts {
-    'config.lua',  -- Load lại config để đảm bảo
     '@oxmysql/lib/MySQL.lua',
     'server/main.lua'
 }

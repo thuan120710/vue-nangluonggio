@@ -15,30 +15,17 @@ local PlayerEarnings = {} -- [citizenid] = {earningsPool, systems, lastEarning, 
 -- ============================================
 
 -- Get current day (reset at 6:00 AM Vietnam time)
--- Reset vào 6:00 sáng giờ Việt Nam (UTC+7)
 -- ĐỒNG BỘ VỚI CLIENT để cùng logic reset
 -- @return string - Số ngày kể từ epoch
 local function GetCurrentDay()
-    local timestamp = os.time()
-    -- Điều chỉnh để reset vào 6:00 sáng VN thay vì 00:00 VN
-    -- 6:00 VN = 23:00 UTC ngày hôm trước
-    -- Nên ta trừ đi 1 giờ (3600 giây) từ UTC+7
-    local vietnamOffset = (7 * 3600) - (6 * 3600) -- UTC+7 - 6 giờ = UTC+1
-    local adjustedTime = timestamp + vietnamOffset
-    local days = math.floor(adjustedTime / 86400)
-    return tostring(days) -- Trả về số ngày kể từ epoch
+    return Utils.GetCurrentDay(os.time())
 end
 
 -- Validate turbine ID
 -- @param turbineId string - Turbine ID to validate
 -- @return boolean - True if valid, false otherwise
 local function ValidateTurbineId(turbineId)
-    for _, turbineData in ipairs(Config.TurbineLocations) do
-        if turbineData.id == turbineId then
-            return true
-        end
-    end
-    return false
+    return Utils.ValidateTurbineId(turbineId, Config.TurbineLocations)
 end
 
 -- Count total jerrycan items in player inventory
@@ -65,21 +52,7 @@ end
 -- @param systems table - System values (stability, electric, etc.)
 -- @return number - Total profit amount
 local function CalculateSystemProfit(systems)
-    local totalProfit = 0
-    
-    for systemName, value in pairs(systems) do
-        local systemProfit = Config.BaseSalary * (Config.SystemProfitContribution / 100)
-        
-        if value <= 30 then
-            systemProfit = 0
-        else
-            systemProfit = systemProfit * (value / 100)
-        end
-        
-        totalProfit = totalProfit + systemProfit
-    end
-    
-    return totalProfit
+    return Utils.CalculateSystemProfit(systems, Config.BaseSalary, Config.SystemProfitContribution)
 end
 
 -- Check if turbine can earn money
@@ -87,20 +60,7 @@ end
 -- @param currentFuel number - Current fuel level
 -- @return boolean, string - Can earn status and reason
 local function CanEarnMoney(systems, currentFuel)
-    if currentFuel <= 0 then
-        return false, "OUT_OF_FUEL"
-    end
-    
-    local below30 = 0
-    for _, value in pairs(systems) do
-        if value <= 30 then below30 = below30 + 1 end
-    end
-    
-    if below30 >= 3 then 
-        return false, "STOPPED"
-    end
-    
-    return true, "RUNNING"
+    return Utils.CanEarnMoney(systems, currentFuel)
 end
 
 -- ============================================
@@ -111,20 +71,15 @@ end
 -- @param citizenid string - Player citizen ID
 local function InitPlayerEarnings(citizenid)
     if not PlayerEarnings[citizenid] then
+        local initialData = Utils.GetInitialPlayerData(GetCurrentDay(), Config.InitialSystemValue)
         PlayerEarnings[citizenid] = {
-            earningsPool = 0,
-            systems = {
-                stability = Config.InitialSystemValue,
-                electric = Config.InitialSystemValue,
-                lubrication = Config.InitialSystemValue,
-                blades = Config.InitialSystemValue,
-                safety = Config.InitialSystemValue
-            },
-            lastEarning = 0,
-            lastPenalty = 0,
-            lastFuelConsumption = 0,
-            currentFuel = 0,
-            onDuty = false
+            earningsPool = initialData.earningsPool,
+            systems = initialData.systems,
+            lastEarning = initialData.lastEarning,
+            lastPenalty = initialData.lastPenalty,
+            lastFuelConsumption = initialData.lastFuelConsumption,
+            currentFuel = initialData.currentFuel,
+            onDuty = initialData.onDuty
         }
     end
 end
@@ -144,7 +99,7 @@ local function CheckAndResetDailyHours(citizenid)
     end
     
     -- Reset nếu qua ngày mới (6:00 sáng)
-    if PlayerWorkData[citizenid].lastDayReset ~= currentDay then
+    if Utils.ShouldResetDailyHours(PlayerWorkData[citizenid].lastDayReset, currentDay) then
         PlayerWorkData[citizenid].dailyWorkHours = 0
         PlayerWorkData[citizenid].lastDayReset = currentDay
     end
@@ -160,35 +115,23 @@ local function BroadcastRentalStatus(turbineId)
     local rentalData = TurbineRentals[turbineId]
     local graceData = TurbineExpiryGracePeriod[turbineId]
     
+    local state = Utils.GetInitialRentalState()
+    
     if rentalData then
-        GlobalState['turbine_' .. turbineId] = {
-            isRented = true,
-            ownerName = rentalData.ownerName,
-            citizenid = rentalData.citizenid,
-            expiryTime = rentalData.expiryTime,
-            withdrawDeadline = nil,
-            isGracePeriod = false
-        }
+        state.isRented = true
+        state.ownerName = rentalData.ownerName
+        state.citizenid = rentalData.citizenid
+        state.expiryTime = rentalData.expiryTime
     elseif graceData then
         -- Đang trong grace period (4 giờ để rút tiền)
-        GlobalState['turbine_' .. turbineId] = {
-            isRented = false,
-            ownerName = graceData.ownerName,
-            citizenid = graceData.citizenid,
-            expiryTime = graceData.expiryTime,
-            withdrawDeadline = graceData.withdrawDeadline,
-            isGracePeriod = true
-        }
-    else
-        GlobalState['turbine_' .. turbineId] = {
-            isRented = false,
-            ownerName = nil,
-            citizenid = nil,
-            expiryTime = nil,
-            withdrawDeadline = nil,
-            isGracePeriod = false
-        }
+        state.ownerName = graceData.ownerName
+        state.citizenid = graceData.citizenid
+        state.expiryTime = graceData.expiryTime
+        state.withdrawDeadline = graceData.withdrawDeadline
+        state.isGracePeriod = true
     end
+    
+    GlobalState['turbine_' .. turbineId] = state
 end
 
 -- Check rental expiry and handle grace period
@@ -273,14 +216,7 @@ end
 -- Reset all turbines to unrented state on script start
 CreateThread(function()
     for _, turbineData in ipairs(Config.TurbineLocations) do
-        GlobalState['turbine_' .. turbineData.id] = {
-            isRented = false,
-            ownerName = nil,
-            citizenid = nil,
-            expiryTime = nil,
-            withdrawDeadline = nil,
-            isGracePeriod = false
-        }
+        GlobalState['turbine_' .. turbineData.id] = Utils.GetInitialRentalState()
     end
 end)
 
